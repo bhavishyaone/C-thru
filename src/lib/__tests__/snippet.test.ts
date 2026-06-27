@@ -11,11 +11,13 @@ function loadSnippet() {
   eval(snippetCode)
 }
 
+// Let async work from fetch promises settle
+const tick = () => new Promise(r => setTimeout(r, 0))
+
 beforeEach(() => {
   delete (window as any).cthru
   delete (window as any).CthruConfig
   localStorage.clear()
-  vi.useFakeTimers()
   global.fetch = vi.fn().mockResolvedValue({
     ok: true,
     json: () => Promise.resolve([{ accepted: true }]),
@@ -24,7 +26,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -59,8 +60,7 @@ describe('cthru snippet — anonymous_id', () => {
 describe('cthru snippet — track()', () => {
   it('calls fetch with the event name and source: custom', async () => {
     ;(window as any).cthru.track('invited_teammate', { count: 3 })
-    await vi.runAllTimersAsync()
-    await Promise.resolve()
+    await tick()
     expect(global.fetch).toHaveBeenCalled()
     const body = JSON.parse((global.fetch as any).mock.calls[0][1].body)
     const event = body.events.find((e: any) => e.name === 'invited_teammate')
@@ -71,16 +71,14 @@ describe('cthru snippet — track()', () => {
 
   it('includes the anonymous_id in every event', async () => {
     ;(window as any).cthru.track('pageview', {})
-    await vi.runAllTimersAsync()
-    await Promise.resolve()
+    await tick()
     const body = JSON.parse((global.fetch as any).mock.calls[0][1].body)
     expect(body.events[0].anonymousId).toBeTruthy()
   })
 
   it('includes the writeKey in the request body', async () => {
     ;(window as any).cthru.track('pageview', {})
-    await vi.runAllTimersAsync()
-    await Promise.resolve()
+    await tick()
     const body = JSON.parse((global.fetch as any).mock.calls[0][1].body)
     expect(body.writeKey).toBe('test-write-key')
   })
@@ -90,8 +88,7 @@ describe('cthru snippet — identify()', () => {
   it('attaches userId to subsequent track events', async () => {
     ;(window as any).cthru.identify('user-123', { email: 'a@acme.com' })
     ;(window as any).cthru.track('hit_paywall', {})
-    await vi.runAllTimersAsync()
-    await Promise.resolve()
+    await tick()
     const calls = (global.fetch as any).mock.calls
     const lastBody = JSON.parse(calls[calls.length - 1][1].body)
     const event = lastBody.events.find((e: any) => e.name === 'hit_paywall')
@@ -101,8 +98,7 @@ describe('cthru snippet — identify()', () => {
   it('attaches email to subsequent track events', async () => {
     ;(window as any).cthru.identify('user-456', { email: 'b@stripe.com' })
     ;(window as any).cthru.track('pageview', {})
-    await vi.runAllTimersAsync()
-    await Promise.resolve()
+    await tick()
     const calls = (global.fetch as any).mock.calls
     const lastBody = JSON.parse(calls[calls.length - 1][1].body)
     const event = lastBody.events.find((e: any) => e.name === 'pageview')
@@ -112,18 +108,19 @@ describe('cthru snippet — identify()', () => {
 
 describe('cthru snippet — retry on rejection', () => {
   it('re-queues and retries a rejected event on the next flush', async () => {
+    // First batch has [session_start, payment_succeeded] — accept session_start, reject payment_succeeded
     global.fetch = vi.fn()
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([{ accepted: false, reason: 'test' }]) })
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([{ accepted: true }, { accepted: false }]) })
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([{ accepted: true }, { accepted: true }]) })
 
     ;(window as any).cthru.track('payment_succeeded', {})
-    await vi.runAllTimersAsync()
-    await Promise.resolve()
+    await tick() // fetch resolves
+    await tick() // .then(res.json) resolves
+    await tick() // .then(retry) runs — payment_succeeded back in queue
 
-    // Trigger another event to force a second flush carrying the retried event
+    // Trigger another event — flush sends [payment_succeeded, next_event]
     ;(window as any).cthru.track('next_event', {})
-    await vi.runAllTimersAsync()
-    await Promise.resolve()
+    await tick()
 
     expect(global.fetch).toHaveBeenCalledTimes(2)
     const secondBody = JSON.parse((global.fetch as any).mock.calls[1][1].body)
