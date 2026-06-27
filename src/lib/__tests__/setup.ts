@@ -43,7 +43,7 @@ beforeAll(async () => {
 
 afterEach(async () => {
   const { db } = await import('../db')
-  await db.query('TRUNCATE TABLE events RESTART IDENTITY')
+  await db.query('TRUNCATE TABLE events, users, companies, aliases RESTART IDENTITY')
 })
 
 afterAll(async () => {
