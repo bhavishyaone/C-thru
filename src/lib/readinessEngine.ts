@@ -98,12 +98,42 @@ export function evaluateSignal(
   }
 }
 
+export type CreateRuleInput = Omit<ReadinessRule, 'id'>
+export type UpdateRuleInput = Partial<Omit<ReadinessRule, 'id'>>
+
 // listRules — fetch all rules from DB ordered by id.
 export async function listRules(): Promise<ReadinessRule[]> {
   const { rows } = await db.query<ReadinessRule>(
     'SELECT id, label, signal, operator, threshold::numeric, window_days, event_name FROM readiness_rules ORDER BY id'
   )
   return rows.map(r => ({ ...r, threshold: Number(r.threshold) }))
+}
+
+export async function createRule(input: CreateRuleInput): Promise<ReadinessRule> {
+  const { rows } = await db.query<ReadinessRule>(
+    `INSERT INTO readiness_rules (label, signal, operator, threshold, window_days, event_name)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id, label, signal, operator, threshold::numeric, window_days, event_name`,
+    [input.label, input.signal, input.operator, input.threshold, input.window_days ?? null, input.event_name ?? null]
+  )
+  return { ...rows[0]!, threshold: Number(rows[0]!.threshold) }
+}
+
+export async function updateRule(id: number, input: UpdateRuleInput): Promise<void> {
+  const setClauses: string[] = []
+  const values: unknown[] = []
+  let i = 1
+  if (input.label !== undefined)       { setClauses.push(`label = $${i++}`);       values.push(input.label) }
+  if (input.threshold !== undefined)   { setClauses.push(`threshold = $${i++}`);   values.push(input.threshold) }
+  if (input.window_days !== undefined) { setClauses.push(`window_days = $${i++}`); values.push(input.window_days) }
+  if (input.event_name !== undefined)  { setClauses.push(`event_name = $${i++}`);  values.push(input.event_name) }
+  if (setClauses.length === 0) return
+  values.push(id)
+  await db.query(`UPDATE readiness_rules SET ${setClauses.join(', ')} WHERE id = $${i}`, values)
+}
+
+export async function deleteRule(id: number): Promise<void> {
+  await db.query('DELETE FROM readiness_rules WHERE id = $1', [id])
 }
 
 // buildSignalMaps — run the 5 batched GROUP BY queries across ALL companies at once.

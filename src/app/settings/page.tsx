@@ -1,7 +1,8 @@
 import { listKeyEvents } from '@/lib/keyEvents'
 import { listBlockedDomains } from '@/lib/blockedDomains'
 import { getLlmKeyHint, getLlmProviderConfig } from '@/lib/llmSettings'
-import { addKeyEventAction, deleteKeyEventAction, addBlockedDomainAction, removeBlockedDomainAction, saveLlmConfigAction } from './actions'
+import { listRules } from '@/lib/readinessEngine'
+import { addKeyEventAction, deleteKeyEventAction, addBlockedDomainAction, removeBlockedDomainAction, saveLlmConfigAction, addRuleAction, deleteRuleAction } from './actions'
 import { VerifyKeyButton } from './VerifyKeyButton'
 
 export const dynamic = 'force-dynamic'
@@ -13,9 +14,10 @@ const PROVIDERS = [
 ]
 
 export default async function SettingsPage() {
-  const [keyEvents, blockedDomains] = await Promise.all([
+  const [keyEvents, blockedDomains, rules] = await Promise.all([
     listKeyEvents(),
     listBlockedDomains(),
+    listRules(),
   ])
   const llmKeyHint = getLlmKeyHint()
   const { provider: currentProvider, model: currentModel } = getLlmProviderConfig()
@@ -111,6 +113,86 @@ export default async function SettingsPage() {
           <p className="text-xs text-gray-400 mt-4">
             Cost summary — approximate, check your provider&apos;s current pricing. No query history yet.
           </p>
+        </section>
+
+        {/* Readiness Rules */}
+        <section className="mb-12">
+          <h2 className="text-base font-semibold text-gray-700 mb-1">Readiness Rules</h2>
+          <p className="text-sm text-gray-400 mb-4">
+            Define what &quot;ready to pay&quot; means. Each rule is one typed condition on one signal.{' '}
+            <a href="/accounts" className="text-gray-600 hover:text-gray-900 underline">View accounts →</a>
+          </p>
+
+          {rules.length === 0 ? (
+            <p className="text-sm text-gray-400 mb-6">No rules defined yet.</p>
+          ) : (
+            <ul className="space-y-1 mb-6">
+              {rules.map(r => (
+                <li key={r.id} className="flex items-center justify-between bg-white border border-gray-200 rounded px-4 py-2">
+                  <div>
+                    <span className="text-sm text-gray-800 font-medium">{r.label}</span>
+                    <span className="ml-3 text-xs text-gray-400 font-mono">
+                      {r.signal} {r.operator} {r.threshold}
+                      {r.window_days ? ` (${r.window_days}d)` : ''}
+                      {r.event_name ? ` — ${r.event_name}` : ''}
+                    </span>
+                  </div>
+                  <form action={deleteRuleAction}>
+                    <input type="hidden" name="id" value={r.id} />
+                    <button type="submit" className="text-xs text-red-400 hover:text-red-600 transition-colors">
+                      Remove
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <form action={addRuleAction} className="grid grid-cols-2 gap-3 bg-white border border-gray-200 rounded p-4">
+            <div className="col-span-2">
+              <label className="block text-xs text-gray-500 mb-1">Label</label>
+              <input name="label" required placeholder="Active users ≥ 3 (last 30d)"
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Signal</label>
+              <select name="signal" className="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+                <option value="active_users">Active users</option>
+                <option value="total_events">Total events</option>
+                <option value="days_since_active">Days since active</option>
+                <option value="key_event_fired">Key event fired</option>
+                <option value="days_in_product">Days in product</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Operator</label>
+              <select name="operator" className="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+                <option value=">=">≥ (at least)</option>
+                <option value="<=">≤ (at most)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Threshold</label>
+              <input name="threshold" type="number" required min="0" defaultValue="3"
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Window (days, optional)</label>
+              <input name="window_days" type="number" min="1" placeholder="30"
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs text-gray-500 mb-1">Event name (for key_event_fired only)</label>
+              <input name="event_name" placeholder="payment_intent"
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm font-mono" />
+            </div>
+            <div className="col-span-2">
+              <button type="submit"
+                className="bg-gray-900 text-white text-sm px-4 py-2 rounded hover:bg-gray-700 transition-colors">
+                Add rule
+              </button>
+            </div>
+          </form>
         </section>
 
         {/* Key events */}

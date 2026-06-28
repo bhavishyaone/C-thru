@@ -34,6 +34,7 @@ export default async function DashboardPage() {
           <h1 className="text-2xl font-bold text-gray-900">C-thru</h1>
           <div className="flex items-center gap-4">
             <a href="/ask" className="text-sm text-gray-500 hover:text-gray-800 transition-colors">Ask →</a>
+            <a href="/accounts" className="text-sm text-gray-500 hover:text-gray-800 transition-colors">Accounts →</a>
             <a href="/settings" className="text-sm text-gray-500 hover:text-gray-800 transition-colors">Settings →</a>
           </div>
         </div>
