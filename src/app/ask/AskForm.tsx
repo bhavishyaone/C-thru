@@ -134,7 +134,8 @@ export function AskForm({ hasLlmKey }: { hasLlmKey: boolean }) {
           <div className="space-y-6">
             {/* Answer */}
             <section>
-              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Answer</h2>
+              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Answer</h2>
+              <p className="text-sm text-gray-500 mb-3">{result.label}</p>
               {result.rows.length === 0 ? (
                 <p className="text-sm text-gray-500">No results.</p>
               ) : single ? (

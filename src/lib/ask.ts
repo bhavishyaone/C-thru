@@ -2,6 +2,7 @@ import { generateSql } from './llm'
 import { getSchemaContext } from './schemaContext'
 import { validateAndRun } from './sqlGuard'
 import { computeTrend, Trend } from './trendComputer'
+import { interpretationLabel } from './interpretationLabel'
 
 export interface AskResult {
   question: string
@@ -9,6 +10,7 @@ export interface AskResult {
   rows: Record<string, unknown>[]
   rowCount: number
   trend: Trend | null
+  label: string
 }
 
 export async function ask(question: string): Promise<AskResult> {
@@ -17,8 +19,9 @@ export async function ask(question: string): Promise<AskResult> {
   const { rows, rowCount, sql } = await validateAndRun(rawSql)
 
   const trend = await deriveTrend(sql, rows)
+  const label = interpretationLabel(sql)
 
-  return { question, sql, rows, rowCount, trend }
+  return { question, sql, rows, rowCount, trend, label }
 }
 
 async function deriveTrend(sql: string, rows: Record<string, unknown>[]): Promise<Trend | null> {
