@@ -105,3 +105,114 @@ export async function listRules(): Promise<ReadinessRule[]> {
   )
   return rows.map(r => ({ ...r, threshold: Number(r.threshold) }))
 }
+
+// buildSignalMaps — run the 5 batched GROUP BY queries across ALL companies at once.
+// Returns a SignalMaps struct for use by evaluateSignal.
+// 5 queries total, regardless of company count — never looped per-company (D-21).
+export async function buildSignalMaps(rules: ReadinessRule[]): Promise<SignalMaps> {
+  const maps: SignalMaps = {
+    activeUsers: new Map(),
+    totalEvents: new Map(),
+    lastEventDaysAgo: new Map(),
+    keyEventFired: new Map(),
+    daysInProduct: new Map(),
+  }
+
+  const activeUsersRule = rules.find(r => r.signal === 'active_users')
+  const totalEventsRule = rules.find(r => r.signal === 'total_events')
+  const keyEventRules = rules.filter(r => r.signal === 'key_event_fired')
+
+  // 1. active_users — identified users active within the window
+  if (activeUsersRule?.window_days) {
+    const { rows } = await db.query<{ company_domain: string; cnt: string }>(
+      `SELECT company_domain, COUNT(DISTINCT user_id)::text AS cnt
+       FROM active_users_v
+       WHERE last_event_at >= NOW() - ($1 || ' days')::INTERVAL
+         AND company_domain IS NOT NULL
+       GROUP BY company_domain`,
+      [activeUsersRule.window_days]
+    )
+    for (const row of rows) maps.activeUsers.set(row.company_domain, Number(row.cnt))
+  }
+
+  // 2. total_events — events within the window
+  if (totalEventsRule?.window_days) {
+    const { rows } = await db.query<{ company_domain: string; cnt: string }>(
+      `SELECT company_domain, COUNT(*)::text AS cnt
+       FROM events_v
+       WHERE received_at >= NOW() - ($1 || ' days')::INTERVAL
+         AND company_domain IS NOT NULL
+       GROUP BY company_domain`,
+      [totalEventsRule.window_days]
+    )
+    for (const row of rows) maps.totalEvents.set(row.company_domain, Number(row.cnt))
+  }
+
+  // 3. days_since_active — days since last event per company
+  {
+    const { rows } = await db.query<{ domain: string; days: string }>(
+      `SELECT domain,
+              EXTRACT(EPOCH FROM (NOW() - last_event_at)) / 86400 AS days
+       FROM company_activity_v`
+    )
+    for (const row of rows) maps.lastEventDaysAgo.set(row.domain, Math.floor(Number(row.days)))
+  }
+
+  // 4. key_event_fired — which event names each company has fired
+  if (keyEventRules.length > 0) {
+    const eventNames = keyEventRules.map(r => r.event_name).filter(Boolean) as string[]
+    const { rows } = await db.query<{ company_domain: string; name: string }>(
+      `SELECT DISTINCT company_domain, name
+       FROM events_v
+       WHERE name = ANY($1::text[]) AND company_domain IS NOT NULL`,
+      [eventNames]
+    )
+    for (const row of rows) {
+      if (!maps.keyEventFired.has(row.company_domain)) {
+        maps.keyEventFired.set(row.company_domain, new Set())
+      }
+      maps.keyEventFired.get(row.company_domain)!.add(row.name)
+    }
+  }
+
+  // 5. days_in_product — days since first signup per company
+  {
+    const { rows } = await db.query<{ company_domain: string; days: string }>(
+      `SELECT company_domain,
+              EXTRACT(EPOCH FROM (NOW() - MIN(signed_up_at))) / 86400 AS days
+       FROM signups_v
+       WHERE company_domain IS NOT NULL
+       GROUP BY company_domain`
+    )
+    for (const row of rows) maps.daysInProduct.set(row.company_domain, Math.floor(Number(row.days)))
+  }
+
+  return maps
+}
+
+// scoreAllCompanies — compute CompanyScore for every known company.
+// Runs buildSignalMaps (5 queries) then evaluates all rules in memory.
+export async function scoreAllCompanies(): Promise<CompanyScore[]> {
+  const rules = await listRules()
+  if (rules.length === 0) return []
+
+  const maps = await buildSignalMaps(rules)
+
+  // Collect all company domains across all signal maps
+  const allDomains = new Set<string>([
+    ...maps.activeUsers.keys(),
+    ...maps.totalEvents.keys(),
+    ...maps.lastEventDaysAgo.keys(),
+    ...maps.keyEventFired.keys(),
+    ...maps.daysInProduct.keys(),
+  ])
+
+  const scores: CompanyScore[] = []
+  for (const domain of allDomains) {
+    const breakdown = rules.map(rule => evaluateSignal(rule, domain, maps))
+    const rulesMet = breakdown.filter(r => r.passed).length
+    scores.push({ domain, rulesMet, rulesTotal: rules.length, breakdown })
+  }
+
+  return scores.sort((a, b) => b.rulesMet - a.rulesMet)
+}
