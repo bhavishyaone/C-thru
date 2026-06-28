@@ -4,6 +4,33 @@ import { revalidatePath } from 'next/cache'
 import { addKeyEvent, deleteKeyEvent } from '@/lib/keyEvents'
 import { addBlockedDomain, removeBlockedDomain } from '@/lib/blockedDomains'
 import { saveLlmConfig, verifyLlmKey } from '@/lib/llmSettings'
+import { createRule, deleteRule, type SignalType } from '@/lib/readinessEngine'
+
+const VALID_SIGNALS: SignalType[] = [
+  'active_users', 'total_events', 'days_since_active', 'key_event_fired', 'days_in_product',
+]
+
+export async function addRuleAction(formData: FormData) {
+  const signal = formData.get('signal') as string
+  if (!VALID_SIGNALS.includes(signal as SignalType)) return
+  const label     = (formData.get('label')      as string | null)?.trim() ?? ''
+  const operator  = (formData.get('operator')   as string) === '<=' ? '<=' : '>='
+  const threshold = Number(formData.get('threshold'))
+  const windowDays = formData.get('window_days') ? Number(formData.get('window_days')) : null
+  const eventName  = (formData.get('event_name') as string | null)?.trim() || null
+  if (!label || isNaN(threshold)) return
+  await createRule({ label, signal: signal as SignalType, operator, threshold, window_days: windowDays, event_name: eventName })
+  revalidatePath('/settings')
+  revalidatePath('/accounts')
+}
+
+export async function deleteRuleAction(formData: FormData) {
+  const id = Number(formData.get('id'))
+  if (!id) return
+  await deleteRule(id)
+  revalidatePath('/settings')
+  revalidatePath('/accounts')
+}
 
 export async function addKeyEventAction(formData: FormData) {
   const name = (formData.get('name') as string | null)?.trim() ?? ''

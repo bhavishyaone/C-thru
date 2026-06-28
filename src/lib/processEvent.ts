@@ -70,8 +70,8 @@ async function upsertAlias(
 ) {
   if (!userId && !email) return
   await db.query(
-    `INSERT INTO aliases (anonymous_id, user_id, email, company_domain, updated_at)
-     VALUES ($1, $2, $3, $4, now())
+    `INSERT INTO aliases (anonymous_id, user_id, email, company_domain, updated_at, first_identified_at)
+     VALUES ($1, $2, $3, $4, now(), now())
      ON CONFLICT (anonymous_id) DO UPDATE
        SET user_id = COALESCE(EXCLUDED.user_id, aliases.user_id),
            email = COALESCE(EXCLUDED.email, aliases.email),
