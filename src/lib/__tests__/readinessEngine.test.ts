@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { evaluateSignal, listRules, type ReadinessRule, type SignalMaps } from '../readinessEngine'
+import { evaluateSignal, listRules, scoreCompany, type ReadinessRule, type SignalMaps } from '../readinessEngine'
+import { processEvent } from '../processEvent'
 import { db } from '../db'
 
 // Minimal rule factory — only the fields evaluateSignal uses
@@ -202,5 +203,26 @@ describe('readiness_rules table — DB integration', () => {
     expect(custom!.signal).toBe('total_events')
     expect(custom!.threshold).toBe(10)
     expect(custom!.window_days).toBe(14)
+  })
+})
+
+describe('scoreCompany — per-company breakdown', () => {
+  it('returns null for an unknown domain', async () => {
+    const score = await scoreCompany('no-such-domain.xyz')
+    expect(score).toBeNull()
+  })
+
+  it('returns a breakdown with one entry per rule', async () => {
+    const now = new Date(Date.now() - 1000).toISOString()
+    await processEvent({ name: 'pageview', source: 'auto', anonymousId: 'anon-sc-bd-1', userId: 'user-sc-bd-1', email: 'alice@breakdown.io', occurredAt: now })
+    const score = await scoreCompany('breakdown.io')
+    expect(score).toBeDefined()
+    const rules = await listRules()
+    expect(score!.breakdown).toHaveLength(rules.length)
+    // sum of passed + failed equals total
+    const passed = score!.breakdown.filter(r => r.passed).length
+    const failed = score!.breakdown.filter(r => !r.passed).length
+    expect(passed + failed).toBe(rules.length)
+    expect(passed).toBe(score!.rulesMet)
   })
 })

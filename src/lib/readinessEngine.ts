@@ -246,3 +246,9 @@ export async function scoreAllCompanies(): Promise<CompanyScore[]> {
 
   return scores.sort((a, b) => b.rulesMet - a.rulesMet)
 }
+
+// scoreCompany — compute breakdown for a single domain (still uses the batched 5 queries).
+export async function scoreCompany(domain: string): Promise<CompanyScore | null> {
+  const scores = await scoreAllCompanies()
+  return scores.find(s => s.domain === domain) ?? null
+}
