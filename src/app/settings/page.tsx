@@ -1,3 +1,5 @@
+import type { Metadata } from 'next'
+import Link from 'next/link'
 import { listKeyEvents } from '@/lib/keyEvents'
 import { listBlockedDomains } from '@/lib/blockedDomains'
 import { getLlmKeyHint, getLlmProviderConfig } from '@/lib/llmSettings'
@@ -18,7 +20,11 @@ import {
 } from './actions'
 import { VerifyKeyButton } from './VerifyKeyButton'
 import { ReplayEnableForm } from './ReplayEnableForm'
+import AppShell from '@/components/AppShell'
+import Card from '@/components/Card'
+import Badge from '@/components/Badge'
 
+export const metadata: Metadata = { title: 'Settings' }
 export const dynamic = 'force-dynamic'
 
 const PROVIDERS = [
@@ -26,6 +32,120 @@ const PROVIDERS = [
   { value: 'openai',    label: 'OpenAI',      models: ['gpt-4o-mini', 'gpt-4o'] },
   { value: 'groq',      label: 'Groq',        models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'] },
 ]
+
+/* ── Shared form field styles ── */
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: '0.75rem',
+  fontWeight: 600,
+  color: 'var(--color-ink-3)',
+  marginBottom: '0.375rem',
+  letterSpacing: '0.02em',
+}
+
+const fieldStyle: React.CSSProperties = {
+  width: '100%',
+  border: '1px solid var(--color-line)',
+  borderRadius: '8px',
+  padding: '0.5625rem 0.875rem',
+  fontFamily: 'var(--font-sans)',
+  fontSize: '0.875rem',
+  color: 'var(--color-ink)',
+  background: 'var(--color-paper)',
+  outline: 'none',
+}
+
+const monoFieldStyle: React.CSSProperties = {
+  ...fieldStyle,
+  fontFamily: 'var(--font-mono)',
+  fontSize: '0.8125rem',
+}
+
+const submitStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-sans)',
+  fontSize: '0.875rem',
+  fontWeight: 600,
+  color: '#fff',
+  background: 'var(--color-accent)',
+  border: 'none',
+  padding: '0.5rem 1.125rem',
+  borderRadius: '9px',
+  cursor: 'pointer',
+  letterSpacing: '-0.01em',
+}
+
+const removeStyle: React.CSSProperties = {
+  fontSize: '0.75rem',
+  fontWeight: 600,
+  color: 'var(--color-red)',
+  background: 'transparent',
+  border: 'none',
+  cursor: 'pointer',
+  padding: 0,
+  flexShrink: 0,
+}
+
+/* ── Section wrapper ── */
+function Section({ title, subtitle, children, action }: {
+  title: string
+  subtitle?: React.ReactNode
+  children: React.ReactNode
+  action?: React.ReactNode
+}) {
+  return (
+    <section style={{ marginBottom: '2.5rem' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+        <div>
+          <h2
+            style={{
+              fontFamily: 'var(--font-sans)',
+              fontSize: '0.9375rem',
+              fontWeight: 700,
+              color: 'var(--color-ink)',
+              letterSpacing: '-0.01em',
+              marginBottom: subtitle ? '0.25rem' : 0,
+            }}
+          >
+            {title}
+          </h2>
+          {subtitle && (
+            <p style={{ fontSize: '0.8125rem', color: 'var(--color-ink-3)', lineHeight: 1.45 }}>
+              {subtitle}
+            </p>
+          )}
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+/* ── List row ── */
+function ListRow({ label, sub, removeAction }: {
+  label: React.ReactNode
+  sub?: string
+  removeAction: React.ReactNode
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0.75rem 1.125rem',
+        borderBottom: '1px solid var(--color-line)',
+        gap: '1rem',
+      }}
+    >
+      <div>
+        <div style={{ fontSize: '0.875rem', color: 'var(--color-ink)' }}>{label}</div>
+        {sub && <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginTop: '0.125rem', fontFamily: 'var(--font-mono)' }}>{sub}</p>}
+      </div>
+      {removeAction}
+    </div>
+  )
+}
 
 export default async function SettingsPage() {
   const [keyEvents, blockedDomains, rules, outreachSettings, triggerRules, suppressions, replaySettings] = await Promise.all([
@@ -41,140 +161,136 @@ export default async function SettingsPage() {
   const { provider: currentProvider, model: currentModel } = getLlmProviderConfig()
 
   return (
-    <main className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-2xl mx-auto">
-        <nav className="text-sm text-gray-400 mb-6">
-          <a href="/" className="hover:text-gray-600">Dashboard</a>
-          <span className="mx-2">/</span>
-          <span className="text-gray-700">Settings</span>
-        </nav>
+    <AppShell maxWidth="52rem">
+      <div style={{ marginBottom: '2.5rem' }}>
+        <h1
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '2rem',
+            fontWeight: 500,
+            letterSpacing: '-0.02em',
+            color: 'var(--color-ink)',
+          }}
+        >
+          Settings
+        </h1>
+      </div>
 
-        <h1 className="text-2xl font-bold text-gray-900 mb-8">Settings</h1>
+      {/* ── LLM ── */}
+      <Section
+        title="LLM"
+        subtitle="Your API key — stays on your server, never sent to ours."
+        action={llmKeyHint ? (
+          <Link href="/ask" style={{ fontSize: '0.8125rem', color: 'var(--color-accent)', textDecoration: 'none', fontWeight: 500 }}>
+            Open Ask →
+          </Link>
+        ) : undefined}
+      >
+        <Card>
+          {llmKeyHint ? (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.625rem',
+                padding: '0.625rem 0.875rem',
+                background: 'rgba(91,122,70,0.08)',
+                border: '1px solid rgba(91,122,70,0.2)',
+                borderRadius: '8px',
+                marginBottom: '1.25rem',
+              }}
+            >
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--color-green)', display: 'inline-block', flexShrink: 0 }} />
+              <span style={{ fontSize: '0.875rem', color: 'var(--color-ink-2)' }}>
+                Key configured: <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>{llmKeyHint}</code>
+              </span>
+            </div>
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.625rem',
+                padding: '0.625rem 0.875rem',
+                background: 'rgba(180,121,31,0.08)',
+                border: '1px solid rgba(180,121,31,0.2)',
+                borderRadius: '8px',
+                marginBottom: '1.25rem',
+                fontSize: '0.875rem',
+                color: 'var(--color-amber)',
+              }}
+            >
+              No LLM key set — Ask is unavailable.
+            </div>
+          )}
 
-        {/* Vibe Analytics — LLM key */}
-        <section className="mb-12">
-          <h2 className="text-base font-semibold text-gray-700 mb-1">Vibe Analytics</h2>
-          <p className="text-sm text-gray-400 mb-4">
-            Ask questions about your data in plain English. Requires your own LLM API key — it stays on your server.{' '}
-            {llmKeyHint && (
-              <a href="/ask" className="text-gray-600 hover:text-gray-900 underline">Open /ask →</a>
-            )}
-          </p>
-
-          {/* Key status */}
-          <div className="mb-4">
-            {llmKeyHint ? (
-              <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
-                LLM key configured: <code className="font-mono">{llmKeyHint}</code>
-              </p>
-            ) : (
-              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-                No LLM key set — <code className="font-mono">/ask</code> is unavailable. Add{' '}
-                <code className="font-mono">CTHRU_LLM_KEY</code> to{' '}
-                <code className="font-mono">.env.local</code> or paste below.
-              </p>
-            )}
-          </div>
-
-          {/* Paste-in form */}
-          <form action={saveLlmConfigAction} className="space-y-3 mb-4">
+          <form action={saveLlmConfigAction} style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">API key</label>
-              <input
-                type="password"
-                name="llm_key"
-                placeholder="sk-ant-... or sk-..."
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gray-400"
-              />
+              <label style={labelStyle}>API key</label>
+              <input type="password" name="llm_key" placeholder="sk-ant-… or sk-…" style={monoFieldStyle} />
             </div>
-            <div className="flex gap-3">
-              <div className="flex-1">
-                <label className="block text-xs text-gray-500 mb-1">Provider</label>
-                <select
-                  name="llm_provider"
-                  defaultValue={currentProvider}
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-                >
-                  {PROVIDERS.map(p => (
-                    <option key={p.value} value={p.value}>{p.label}</option>
-                  ))}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.875rem' }}>
+              <div>
+                <label style={labelStyle}>Provider</label>
+                <select name="llm_provider" defaultValue={currentProvider} style={fieldStyle}>
+                  {PROVIDERS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                 </select>
               </div>
-              <div className="flex-1">
-                <label className="block text-xs text-gray-500 mb-1">Model</label>
-                <select
-                  name="llm_model"
-                  defaultValue={currentModel}
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-                >
-                  {PROVIDERS.flatMap(p => p.models).map(m => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
+              <div>
+                <label style={labelStyle}>Model</label>
+                <select name="llm_model" defaultValue={currentModel} style={fieldStyle}>
+                  {PROVIDERS.flatMap(p => p.models).map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <button
-                type="submit"
-                className="bg-gray-900 text-white text-sm px-4 py-2 rounded hover:bg-gray-700 transition-colors"
-              >
-                Save to .env.local
-              </button>
-              <p className="text-xs text-gray-400">Restart the server after saving.</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+              <button type="submit" style={submitStyle}>Save to .env.local</button>
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)' }}>Restart the server after saving.</p>
             </div>
           </form>
 
-          {/* Verify key */}
-          {llmKeyHint && <VerifyKeyButton />}
+          {llmKeyHint && (
+            <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--color-line)' }}>
+              <VerifyKeyButton />
+            </div>
+          )}
+        </Card>
+      </Section>
 
-          {/* Cost summary placeholder — populated once /api/ask records usage */}
-          <p className="text-xs text-gray-400 mt-4">
-            Cost summary — approximate, check your provider&apos;s current pricing. No query history yet.
-          </p>
-        </section>
-
-        {/* Readiness Rules */}
-        <section className="mb-12">
-          <h2 className="text-base font-semibold text-gray-700 mb-1">Readiness Rules</h2>
-          <p className="text-sm text-gray-400 mb-4">
-            Define what &quot;ready to pay&quot; means. Each rule is one typed condition on one signal.{' '}
-            <a href="/accounts" className="text-gray-600 hover:text-gray-900 underline">View accounts →</a>
-          </p>
-
+      {/* ── Readiness rules ── */}
+      <Section
+        title="Readiness rules"
+        subtitle={<>Define what "ready to pay" means. Each rule is one typed condition. <Link href="/accounts" style={{ color: 'var(--color-accent)', textDecoration: 'none' }}>View accounts →</Link></>}
+      >
+        <Card padding="0" style={{ marginBottom: '1rem' }}>
           {rules.length === 0 ? (
-            <p className="text-sm text-gray-400 mb-6">No rules defined yet.</p>
+            <p style={{ padding: '1.25rem', fontSize: '0.875rem', color: 'var(--color-ink-3)' }}>No rules defined yet.</p>
           ) : (
-            <ul className="space-y-1 mb-6">
-              {rules.map(r => (
-                <li key={r.id} className="flex items-center justify-between bg-white border border-gray-200 rounded px-4 py-2">
-                  <div>
-                    <span className="text-sm text-gray-800 font-medium">{r.label}</span>
-                    <span className="ml-3 text-xs text-gray-400 font-mono">
-                      {r.signal} {r.operator} {r.threshold}
-                      {r.window_days ? ` (${r.window_days}d)` : ''}
-                      {r.event_name ? ` — ${r.event_name}` : ''}
-                    </span>
-                  </div>
+            rules.map((r, i) => (
+              <ListRow
+                key={r.id}
+                label={<span style={{ fontWeight: 600 }}>{r.label}</span>}
+                sub={`${r.signal} ${r.operator} ${r.threshold}${r.window_days ? ` (${r.window_days}d)` : ''}${r.event_name ? ` — ${r.event_name}` : ''}`}
+                removeAction={
                   <form action={deleteRuleAction}>
                     <input type="hidden" name="id" value={r.id} />
-                    <button type="submit" className="text-xs text-red-400 hover:text-red-600 transition-colors">
-                      Remove
-                    </button>
+                    <button type="submit" style={removeStyle}>Remove</button>
                   </form>
-                </li>
-              ))}
-            </ul>
+                }
+              />
+            ))
           )}
+        </Card>
 
-          <form action={addRuleAction} className="grid grid-cols-2 gap-3 bg-white border border-gray-200 rounded p-4">
-            <div className="col-span-2">
-              <label className="block text-xs text-gray-500 mb-1">Label</label>
-              <input name="label" required placeholder="Active users ≥ 3 (last 30d)"
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+        <Card>
+          <form action={addRuleAction} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.875rem' }}>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={labelStyle}>Label</label>
+              <input name="label" required placeholder="Active users ≥ 3 (last 30d)" style={fieldStyle} />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Signal</label>
-              <select name="signal" className="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+              <label style={labelStyle}>Signal</label>
+              <select name="signal" style={fieldStyle}>
                 <option value="active_users">Active users</option>
                 <option value="total_events">Total events</option>
                 <option value="days_since_active">Days since active</option>
@@ -183,238 +299,201 @@ export default async function SettingsPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Operator</label>
-              <select name="operator" className="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+              <label style={labelStyle}>Operator</label>
+              <select name="operator" style={fieldStyle}>
                 <option value=">=">≥ (at least)</option>
                 <option value="<=">≤ (at most)</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Threshold</label>
-              <input name="threshold" type="number" required min="0" defaultValue="3"
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+              <label style={labelStyle}>Threshold</label>
+              <input name="threshold" type="number" required min="0" defaultValue="3" style={fieldStyle} />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Window (days, optional)</label>
-              <input name="window_days" type="number" min="1" placeholder="30"
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+              <label style={labelStyle}>Window (days, optional)</label>
+              <input name="window_days" type="number" min="1" placeholder="30" style={fieldStyle} />
             </div>
-            <div className="col-span-2">
-              <label className="block text-xs text-gray-500 mb-1">Event name (for key_event_fired only)</label>
-              <input name="event_name" placeholder="payment_intent"
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm font-mono" />
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={labelStyle}>Event name (key_event_fired only)</label>
+              <input name="event_name" placeholder="payment_intent" style={monoFieldStyle} />
             </div>
-            <div className="col-span-2">
-              <button type="submit"
-                className="bg-gray-900 text-white text-sm px-4 py-2 rounded hover:bg-gray-700 transition-colors">
-                Add rule
-              </button>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <button type="submit" style={submitStyle}>Add rule</button>
             </div>
           </form>
-        </section>
+        </Card>
+      </Section>
 
-        {/* Key events */}
-        <section className="mb-12">
-          <h2 className="text-base font-semibold text-gray-700 mb-1">Key events</h2>
-          <p className="text-sm text-gray-400 mb-4">
-            Mark events that signal meaningful product milestones — e.g.{' '}
-            <code className="bg-gray-100 px-1 rounded">payment_succeeded</code>.
-          </p>
-
-          <form action={addKeyEventAction} className="flex gap-2 mb-6">
-            <input
-              type="text"
-              name="name"
-              required
-              placeholder="event_name"
-              maxLength={200}
-              className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gray-400"
-            />
-            <button
-              type="submit"
-              className="bg-gray-900 text-white text-sm px-4 py-2 rounded hover:bg-gray-700 transition-colors"
-            >
-              Add
-            </button>
-          </form>
-
+      {/* ── Key events ── */}
+      <Section
+        title="Key events"
+        subtitle="Mark events that signal meaningful milestones — e.g. payment_succeeded."
+      >
+        <form action={addKeyEventAction} style={{ display: 'flex', gap: '0.625rem', marginBottom: '0.875rem' }}>
+          <input type="text" name="name" required placeholder="event_name" maxLength={200} style={{ ...monoFieldStyle, flex: 1 }} />
+          <button type="submit" style={submitStyle}>Add</button>
+        </form>
+        <Card padding="0">
           {keyEvents.length === 0 ? (
-            <p className="text-sm text-gray-400">No key events defined yet.</p>
+            <p style={{ padding: '1.25rem', fontSize: '0.875rem', color: 'var(--color-ink-3)' }}>No key events defined.</p>
           ) : (
-            <ul className="space-y-1">
-              {keyEvents.map(e => (
-                <li key={e.name} className="flex items-center justify-between bg-white border border-gray-200 rounded px-4 py-2">
-                  <span className="font-mono text-sm text-gray-800">{e.name}</span>
+            keyEvents.map(e => (
+              <ListRow
+                key={e.name}
+                label={<span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.875rem' }}>{e.name}</span>}
+                removeAction={
                   <form action={deleteKeyEventAction}>
                     <input type="hidden" name="name" value={e.name} />
-                    <button type="submit" className="text-xs text-red-400 hover:text-red-600 transition-colors">
-                      Remove
-                    </button>
+                    <button type="submit" style={removeStyle}>Remove</button>
                   </form>
-                </li>
-              ))}
-            </ul>
+                }
+              />
+            ))
           )}
-        </section>
+        </Card>
+      </Section>
 
-        {/* Outreach — Slack webhook + cooldown */}
-        <section className="mb-12">
-          <h2 className="text-base font-semibold text-gray-700 mb-1">Outreach</h2>
-          <p className="text-sm text-gray-400 mb-4">
-            Configure your Slack webhook and per-domain send cooldown.{' '}
-            <a href="/outreach" className="text-gray-600 hover:text-gray-900 underline">View outreach queue →</a>
-          </p>
-          <form action={saveOutreachSettingsAction} className="space-y-3">
+      {/* ── Outreach ── */}
+      <Section
+        title="Outreach"
+        subtitle={<>Slack webhook and per-domain send cooldown. <Link href="/outreach" style={{ color: 'var(--color-accent)', textDecoration: 'none' }}>View queue →</Link></>}
+      >
+        <Card>
+          <form action={saveOutreachSettingsAction} style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Slack incoming webhook URL</label>
-              <input
-                type="url"
-                name="slack_webhook_url"
-                defaultValue={outreachSettings.slack_webhook_url ?? ''}
-                placeholder="https://hooks.slack.com/services/..."
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gray-400"
-              />
-              <p className="text-xs text-gray-400 mt-1">Stored server-side — never exposed in the browser.</p>
+              <label style={labelStyle}>Slack incoming webhook URL</label>
+              <input type="url" name="slack_webhook_url" defaultValue={outreachSettings.slack_webhook_url ?? ''} placeholder="https://hooks.slack.com/services/…" style={monoFieldStyle} />
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginTop: '0.375rem' }}>Stored server-side — never exposed in the browser.</p>
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Send cooldown (days)</label>
-              <input
-                type="number"
-                name="cooldown_days"
-                defaultValue={outreachSettings.cooldown_days}
-                min="1"
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                Triggered drafts are suppressed if this domain was contacted within the window. Manual drafts show a warning but are not blocked.
-              </p>
+              <label style={labelStyle}>Send cooldown (days)</label>
+              <input type="number" name="cooldown_days" defaultValue={outreachSettings.cooldown_days} min="1" style={{ ...fieldStyle, width: '8rem' }} />
             </div>
-            <button
-              type="submit"
-              className="bg-gray-900 text-white text-sm px-4 py-2 rounded hover:bg-gray-700 transition-colors"
-            >
-              Save outreach settings
-            </button>
+            <div>
+              <button type="submit" style={submitStyle}>Save outreach settings</button>
+            </div>
           </form>
-        </section>
+        </Card>
+      </Section>
 
-        {/* Founder voice sample */}
-        <section className="mb-12">
-          <h2 className="text-base font-semibold text-gray-700 mb-1">Founder voice</h2>
-          <p className="text-sm text-gray-400 mb-4">
-            Paste 2–5 sentences of your own writing (an email, a Slack message). C-thru will match the tone.
-            Optional — without a sample, drafts use generic professional tone.
-          </p>
+      {/* ── Founder voice ── */}
+      <Section
+        title="Founder voice"
+        subtitle="2–5 sentences of your own writing. C-thru matches the tone. Optional."
+      >
+        <Card>
           {outreachSettings.voice_sample ? (
-            <div className="mb-4">
-              <p className="text-xs text-gray-500 mb-1">Current sample:</p>
-              <pre className="whitespace-pre-wrap text-sm text-gray-700 bg-white border border-gray-200 rounded px-4 py-3 font-sans">
+            <div style={{ marginBottom: '1.25rem' }}>
+              <p style={{ ...labelStyle, marginBottom: '0.5rem' }}>Current sample</p>
+              <pre
+                style={{
+                  whiteSpace: 'pre-wrap',
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: '0.875rem',
+                  color: 'var(--color-ink-2)',
+                  lineHeight: 1.6,
+                  background: 'var(--color-paper-2)',
+                  borderRadius: '8px',
+                  padding: '0.875rem',
+                  margin: 0,
+                }}
+              >
                 {outreachSettings.voice_sample}
               </pre>
-              <form action={deleteVoiceSampleAction} className="mt-2">
-                <button
-                  type="submit"
-                  className="text-xs text-red-400 hover:text-red-600 transition-colors"
-                >
-                  Delete voice sample (hard-deleted, no archive)
+              <form action={deleteVoiceSampleAction} style={{ marginTop: '0.625rem' }}>
+                <button type="submit" style={{ ...removeStyle, fontSize: '0.8125rem' }}>
+                  Delete voice sample (permanent)
                 </button>
               </form>
             </div>
           ) : (
-            <p className="text-sm text-gray-400 mb-4">No voice sample saved.</p>
+            <p style={{ fontSize: '0.875rem', color: 'var(--color-ink-3)', marginBottom: '1.25rem' }}>No voice sample saved.</p>
           )}
-          <form action={saveVoiceSampleAction} className="space-y-3">
+          <form action={saveVoiceSampleAction} style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
             <textarea
               name="voice_sample"
               rows={4}
-              placeholder="Hey, I noticed your team has been using the product a lot lately — wanted to reach out and see if there's anything I can do to help you get more out of it."
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-gray-400 resize-y"
+              placeholder="Hey, I noticed your team has been using the product a lot lately — wanted to reach out and see if there's anything I can do to help."
+              style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.6 }}
             />
-            <button
-              type="submit"
-              className="bg-gray-900 text-white text-sm px-4 py-2 rounded hover:bg-gray-700 transition-colors"
-            >
-              Save voice sample
-            </button>
+            <div>
+              <button type="submit" style={submitStyle}>Save voice sample</button>
+            </div>
           </form>
-        </section>
+        </Card>
+      </Section>
 
-        {/* Trigger rules */}
-        <section className="mb-12">
-          <h2 className="text-base font-semibold text-gray-700 mb-1">Trigger rules</h2>
-          <p className="text-sm text-gray-400 mb-4">
-            When an account crosses a threshold, C-thru creates a draft automatically — it never sends.
-          </p>
+      {/* ── Trigger rules ── */}
+      <Section
+        title="Trigger rules"
+        subtitle="When an account crosses a threshold, C-thru creates a draft — it never sends automatically."
+      >
+        <Card padding="0" style={{ marginBottom: '1rem' }}>
           {triggerRules.length === 0 ? (
-            <p className="text-sm text-gray-400 mb-6">No trigger rules defined.</p>
+            <p style={{ padding: '1.25rem', fontSize: '0.875rem', color: 'var(--color-ink-3)' }}>No trigger rules defined.</p>
           ) : (
-            <ul className="space-y-1 mb-6">
-              {triggerRules.map(r => (
-                <li key={r.id} className="flex items-center justify-between bg-white border border-gray-200 rounded px-4 py-2">
-                  <div>
-                    <span className="text-sm text-gray-800 font-medium">{r.label}</span>
-                    <span className="ml-3 text-xs text-gray-400 font-mono">
-                      when {r.rules_met_min}/{r.rules_total} rules met
-                    </span>
-                  </div>
+            triggerRules.map(r => (
+              <ListRow
+                key={r.id}
+                label={<span style={{ fontWeight: 600 }}>{r.label}</span>}
+                sub={`when ${r.rules_met_min}/${r.rules_total} rules met`}
+                removeAction={
                   <form action={deleteTriggerRuleAction}>
                     <input type="hidden" name="id" value={r.id} />
-                    <button type="submit" className="text-xs text-red-400 hover:text-red-600 transition-colors">
-                      Remove
-                    </button>
+                    <button type="submit" style={removeStyle}>Remove</button>
                   </form>
-                </li>
-              ))}
-            </ul>
+                }
+              />
+            ))
           )}
-          <form action={addTriggerRuleAction} className="grid grid-cols-2 gap-3 bg-white border border-gray-200 rounded p-4">
-            <div className="col-span-2">
-              <label className="block text-xs text-gray-500 mb-1">Label</label>
-              <input name="label" required placeholder="Ready to close — 4/5 rules met"
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+        </Card>
+        <Card>
+          <form action={addTriggerRuleAction} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.875rem' }}>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={labelStyle}>Label</label>
+              <input name="label" required placeholder="Ready to close — 4/5 rules met" style={fieldStyle} />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Minimum rules met</label>
-              <input name="rules_met_min" type="number" required min="1" defaultValue="4"
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+              <label style={labelStyle}>Minimum rules met</label>
+              <input name="rules_met_min" type="number" required min="1" defaultValue="4" style={fieldStyle} />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Out of (total rules)</label>
-              <input name="rules_total" type="number" required min="1" defaultValue="5"
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+              <label style={labelStyle}>Out of (total rules)</label>
+              <input name="rules_total" type="number" required min="1" defaultValue="5" style={fieldStyle} />
             </div>
-            <div className="col-span-2">
-              <button type="submit"
-                className="bg-gray-900 text-white text-sm px-4 py-2 rounded hover:bg-gray-700 transition-colors">
-                Add trigger rule
-              </button>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <button type="submit" style={submitStyle}>Add trigger rule</button>
             </div>
           </form>
-        </section>
+        </Card>
+      </Section>
 
-        {/* Suppression list */}
-        <section className="mb-12">
-          <h2 className="text-base font-semibold text-gray-700 mb-1">Suppression list</h2>
-          <p className="text-sm text-gray-400 mb-4">
-            Hard blocks — no draft or send action will proceed if the domain or email matches. Cannot be overridden.
-          </p>
+      {/* ── Suppression list ── */}
+      <Section
+        title="Suppression list"
+        subtitle="Hard blocks — no draft will be created for these domains or emails."
+      >
+        <Card padding="0" style={{ marginBottom: '1rem' }}>
           {suppressions.filter(s => !s.removed_at).length === 0 ? (
-            <p className="text-sm text-gray-400 mb-6">No suppressed domains or emails.</p>
+            <p style={{ padding: '1.25rem', fontSize: '0.875rem', color: 'var(--color-ink-3)' }}>No suppressed domains or emails.</p>
           ) : (
-            <ul className="space-y-1 mb-6">
-              {suppressions.filter(s => !s.removed_at).map(s => (
-                <li key={s.id} className="flex items-center justify-between bg-white border border-gray-200 rounded px-4 py-2">
-                  <div>
-                    <span className="text-xs text-gray-400 font-mono uppercase mr-2">{s.entry_type}</span>
-                    <span className="text-sm text-gray-800 font-mono">{s.value}</span>
+            suppressions.filter(s => !s.removed_at).map(s => (
+              <ListRow
+                key={s.id}
+                label={
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Badge color="neutral">{s.entry_type}</Badge>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.875rem' }}>{s.value}</span>
                   </div>
+                }
+                removeAction={
                   <form action={removeSuppressionAction}>
                     <input type="hidden" name="id" value={s.id} />
                     <button
                       type="submit"
-                      className="text-xs text-red-400 hover:text-red-600 transition-colors"
+                      style={removeStyle}
                       onClick={e => {
-                        if (!confirm('This person asked not to be contacted. Removing them allows C-thru to draft outreach to them again. Are you sure?')) {
+                        if (!confirm('This person asked not to be contacted. Removing them allows C-thru to draft outreach again. Are you sure?')) {
                           e.preventDefault()
                         }
                       }}
@@ -422,142 +501,123 @@ export default async function SettingsPage() {
                       Remove
                     </button>
                   </form>
-                </li>
-              ))}
-            </ul>
+                }
+              />
+            ))
           )}
-          <form action={addSuppressionAction} className="flex gap-3 bg-white border border-gray-200 rounded p-4">
-            <select name="entry_type"
-              className="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400">
+        </Card>
+        <Card>
+          <form action={addSuppressionAction} style={{ display: 'flex', gap: '0.625rem' }}>
+            <select name="entry_type" style={{ ...fieldStyle, width: 'auto', flexShrink: 0 }}>
               <option value="email">Email</option>
               <option value="domain">Domain</option>
             </select>
-            <input name="value" required placeholder="person@company.com or company.com"
-              className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gray-400" />
-            <button type="submit"
-              className="bg-gray-900 text-white text-sm px-4 py-2 rounded hover:bg-gray-700 transition-colors">
-              Add
-            </button>
+            <input name="value" required placeholder="person@company.com or company.com" style={{ ...monoFieldStyle, flex: 1 }} />
+            <button type="submit" style={{ ...submitStyle, whiteSpace: 'nowrap' }}>Add</button>
           </form>
-        </section>
+        </Card>
+      </Section>
 
-        {/* Session Replay (D-37) — off by default */}
-        <section className="mb-12">
-          <h2 className="text-base font-semibold text-gray-700 mb-1">Session Replay</h2>
-          <p className="text-sm text-gray-400 mb-4">
-            Record user sessions to understand WHY users hesitate or drop off.
-            Off by default — enabling requires acknowledging your disclosure obligations.{' '}
+      {/* ── Session Replay ── */}
+      <Section
+        title="Session replay"
+        subtitle={
+          <>
+            Record user sessions to understand why users hesitate or drop off.
+            Off by default — enabling requires acknowledging your disclosure obligations.
             {replaySettings.enabled && (
-              <a href="/replay" className="text-gray-600 hover:text-gray-900 underline">View recordings →</a>
+              <> <Link href="/replay" style={{ color: 'var(--color-accent)', textDecoration: 'none' }}>View recordings →</Link></>
             )}
-          </p>
-
-          {replaySettings.enabled ? (
-            <div className="space-y-6">
-              <div className="flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-lg">
-                <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-                <span className="text-sm text-green-800">
-                  Session Replay is <strong>enabled</strong>.
-                  {replaySettings.acknowledgedAt && (
-                    <> Acknowledged {replaySettings.acknowledgedAt.toLocaleDateString()} (clause v{replaySettings.acknowledgedClauseVersion}).</>
-                  )}
-                </span>
-              </div>
-
-              <form action={updateReplayRetentionAction} className="flex gap-3 items-end">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Retention (days)</label>
-                  <input
-                    name="retention_days"
-                    type="number"
-                    min="1"
-                    defaultValue={replaySettings.retentionDays}
-                    className="border border-gray-300 rounded px-3 py-2 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-gray-400"
-                  />
-                </div>
-                <button type="submit"
-                  className="bg-gray-900 text-white text-sm px-4 py-2 rounded hover:bg-gray-700 transition-colors">
-                  Save
-                </button>
-              </form>
-
-              <form action={updateReplaySampleRateAction} className="flex gap-3 items-end">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Sample rate (0.0 – 1.0)</label>
-                  <input
-                    name="sample_rate"
-                    type="number"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    defaultValue={replaySettings.sampleRate}
-                    className="border border-gray-300 rounded px-3 py-2 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-gray-400"
-                  />
-                </div>
-                <button type="submit"
-                  className="bg-gray-900 text-white text-sm px-4 py-2 rounded hover:bg-gray-700 transition-colors">
-                  Save
-                </button>
-              </form>
-
-              <form action={disableReplayAction}>
-                <button type="submit"
-                  className="text-sm text-red-500 hover:text-red-700 transition-colors">
-                  Disable Session Replay
-                </button>
-              </form>
+          </>
+        }
+      >
+        {replaySettings.enabled ? (
+          <Card style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {/* Status */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.625rem',
+                padding: '0.75rem 1rem',
+                background: 'rgba(91,122,70,0.08)',
+                border: '1px solid rgba(91,122,70,0.2)',
+                borderRadius: '10px',
+              }}
+            >
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--color-green)', display: 'inline-block', flexShrink: 0 }} />
+              <p style={{ fontSize: '0.875rem', color: 'var(--color-ink-2)' }}>
+                Session replay is <strong>enabled</strong>.
+                {replaySettings.acknowledgedAt && (
+                  <> Acknowledged {replaySettings.acknowledgedAt.toLocaleDateString()} (clause v{replaySettings.acknowledgedClauseVersion}).</>
+                )}
+              </p>
             </div>
-          ) : (
+
+            {/* Retention */}
+            <form action={updateReplayRetentionAction} style={{ display: 'flex', alignItems: 'flex-end', gap: '0.625rem' }}>
+              <div>
+                <label style={labelStyle}>Retention (days)</label>
+                <input name="retention_days" type="number" min="1" defaultValue={replaySettings.retentionDays} style={{ ...fieldStyle, width: '7rem' }} />
+              </div>
+              <button type="submit" style={submitStyle}>Save</button>
+            </form>
+
+            {/* Sample rate */}
+            <form action={updateReplaySampleRateAction} style={{ display: 'flex', alignItems: 'flex-end', gap: '0.625rem' }}>
+              <div>
+                <label style={labelStyle}>Sample rate (0.0 – 1.0)</label>
+                <input name="sample_rate" type="number" min="0" max="1" step="0.01" defaultValue={replaySettings.sampleRate} style={{ ...fieldStyle, width: '7rem' }} />
+              </div>
+              <button type="submit" style={submitStyle}>Save</button>
+            </form>
+
+            {/* Disable */}
+            <form action={disableReplayAction} style={{ borderTop: '1px solid var(--color-line)', paddingTop: '1rem' }}>
+              <button type="submit" style={{ ...removeStyle, fontSize: '0.875rem' }}>
+                Disable session replay
+              </button>
+            </form>
+          </Card>
+        ) : (
+          <Card>
             <ReplayEnableForm
               enableAction={enableReplayAction}
               clauseVersion={CURRENT_CLAUSE_VERSION}
               retentionDays={replaySettings.retentionDays}
             />
-          )}
-        </section>
+          </Card>
+        )}
+      </Section>
 
-        {/* Blocked domains */}
-        <section>
-          <h2 className="text-base font-semibold text-gray-700 mb-1">Blocked domains</h2>
-          <p className="text-sm text-gray-400 mb-4">
-            Emails from these domains are treated as personal and excluded from company grouping.
-          </p>
-
-          <form action={addBlockedDomainAction} className="flex gap-2 mb-6">
-            <input
-              type="text"
-              name="domain"
-              required
-              placeholder="gmail.com"
-              className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gray-400"
-            />
-            <button
-              type="submit"
-              className="bg-gray-900 text-white text-sm px-4 py-2 rounded hover:bg-gray-700 transition-colors"
-            >
-              Add
-            </button>
-          </form>
-
+      {/* ── Blocked domains ── */}
+      <Section
+        title="Blocked domains"
+        subtitle="Emails from these domains are treated as personal and excluded from company grouping."
+      >
+        <form action={addBlockedDomainAction} style={{ display: 'flex', gap: '0.625rem', marginBottom: '0.875rem' }}>
+          <input type="text" name="domain" required placeholder="gmail.com" style={{ ...monoFieldStyle, flex: 1 }} />
+          <button type="submit" style={submitStyle}>Add</button>
+        </form>
+        <Card padding="0">
           {blockedDomains.length === 0 ? (
-            <p className="text-sm text-gray-400">No blocked domains.</p>
+            <p style={{ padding: '1.25rem', fontSize: '0.875rem', color: 'var(--color-ink-3)' }}>No blocked domains.</p>
           ) : (
-            <ul className="space-y-1">
-              {blockedDomains.map(domain => (
-                <li key={domain} className="flex items-center justify-between bg-white border border-gray-200 rounded px-4 py-2">
-                  <span className="font-mono text-sm text-gray-800">{domain}</span>
+            blockedDomains.map(domain => (
+              <ListRow
+                key={domain}
+                label={<span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.875rem' }}>{domain}</span>}
+                removeAction={
                   <form action={removeBlockedDomainAction}>
                     <input type="hidden" name="domain" value={domain} />
-                    <button type="submit" className="text-xs text-red-400 hover:text-red-600 transition-colors">
-                      Remove
-                    </button>
+                    <button type="submit" style={removeStyle}>Remove</button>
                   </form>
-                </li>
-              ))}
-            </ul>
+                }
+              />
+            ))
           )}
-        </section>
-      </div>
-    </main>
+        </Card>
+      </Section>
+    </AppShell>
   )
 }

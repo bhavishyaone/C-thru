@@ -1,61 +1,98 @@
+import Link from 'next/link'
+import type { Metadata } from 'next'
 import { listUsersForJourney } from '@/lib/journeyEngine'
+import AppShell from '@/components/AppShell'
+import Card from '@/components/Card'
+import { EmptyState } from '@/components/States'
 
+export const metadata: Metadata = { title: 'Journey' }
 export const dynamic = 'force-dynamic'
 
 export default async function JourneyIndexPage() {
   const users = await listUsersForJourney(50)
 
   return (
-    <main className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-2xl mx-auto">
-        <nav className="text-sm text-gray-400 mb-6">
-          <a href="/" className="hover:text-gray-600">Dashboard</a>
-          <span className="mx-2">/</span>
-          <span className="text-gray-700">Journey</span>
-        </nav>
-
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">User Journeys</h1>
-
-        {users.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
-            <p className="text-gray-500 text-sm">No identified users yet.</p>
-          </div>
-        ) : (
-          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide">
-                  <th className="text-left px-4 py-3">User</th>
-                  <th className="text-right px-4 py-3">Events</th>
-                  <th className="text-right px-4 py-3">Last active</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u, i) => (
-                  <tr key={u.userId} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i === users.length - 1 ? 'border-b-0' : ''}`}>
-                    <td className="px-4 py-3 text-gray-800">
-                      {u.email ?? <span className="font-mono text-gray-400 text-xs">{u.userId}</span>}
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-500">{u.eventCount}</td>
-                    <td className="px-4 py-3 text-right text-gray-400 text-xs">
-                      {new Date(u.lastEventAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <a
-                        href={`/journey/${encodeURIComponent(u.userId)}`}
-                        className="text-xs text-gray-400 hover:text-gray-700 underline"
-                      >
-                        View →
-                      </a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+    <AppShell maxWidth="56rem">
+      <div style={{ marginBottom: '2.25rem' }}>
+        <h1
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '2rem',
+            fontWeight: 500,
+            letterSpacing: '-0.02em',
+            color: 'var(--color-ink)',
+            marginBottom: '0.25rem',
+          }}
+        >
+          Journey
+        </h1>
+        <p style={{ fontSize: '0.875rem', color: 'var(--color-ink-3)' }}>
+          Step-by-step timeline for any identified user.
+        </p>
       </div>
-    </main>
+
+      {users.length === 0 ? (
+        <EmptyState
+          title="No identified users yet"
+          description="Users appear here once they've called cthru.identify()."
+        />
+      ) : (
+        <Card padding="0">
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--color-line)' }}>
+                {['User', 'Events', 'Last active', ''].map((h, i) => (
+                  <th
+                    key={i}
+                    style={{
+                      textAlign: i === 0 ? 'left' : i === 3 ? 'right' : 'right',
+                      padding: '0.75rem 1.25rem',
+                      fontSize: '0.6875rem',
+                      fontWeight: 700,
+                      letterSpacing: '0.05em',
+                      textTransform: 'uppercase',
+                      color: 'var(--color-ink-3)',
+                      background: 'var(--color-paper-2)',
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u, i) => (
+                <tr
+                  key={u.userId}
+                  style={{ borderBottom: i < users.length - 1 ? '1px solid var(--color-line)' : 'none' }}
+                >
+                  <td style={{ padding: '0.875rem 1.25rem', color: 'var(--color-ink)', fontWeight: 500 }}>
+                    {u.email ?? (
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--color-ink-3)' }}>
+                        {u.userId}
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ padding: '0.875rem 1.25rem', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: '0.8125rem', color: 'var(--color-ink-2)' }}>
+                    {u.eventCount}
+                  </td>
+                  <td style={{ padding: '0.875rem 1.25rem', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--color-ink-3)' }}>
+                    {new Date(u.lastEventAt).toLocaleDateString()}
+                  </td>
+                  <td style={{ padding: '0.875rem 1.25rem', textAlign: 'right' }}>
+                    <Link
+                      href={`/journey/${encodeURIComponent(u.userId)}`}
+                      style={{ fontSize: '0.8125rem', color: 'var(--color-accent)', textDecoration: 'none', fontWeight: 500 }}
+                    >
+                      View →
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
+    </AppShell>
   )
 }

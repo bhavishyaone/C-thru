@@ -1,32 +1,114 @@
+import type { Metadata } from 'next'
 import { getLlmKeyHint } from '@/lib/llmSettings'
+import { listPinnedQueries } from '@/lib/pinnedQueries'
+import { validateAndRun } from '@/lib/sqlGuard'
 import { AskForm } from './AskForm'
+import AppShell from '@/components/AppShell'
+import Card from '@/components/Card'
+import { EmptyState } from '@/components/States'
+import Link from 'next/link'
 
+export const metadata: Metadata = { title: 'Ask' }
 export const dynamic = 'force-dynamic'
 
-export default function AskPage() {
+export default async function AskPage() {
   const hasLlmKey = Boolean(getLlmKeyHint())
+  const pinned = await listPinnedQueries()
+
+  const pinnedWithValues = await Promise.all(
+    pinned.map(async pq => {
+      try {
+        const result = await validateAndRun(pq.sql)
+        return { pq, result, error: null }
+      } catch (e) {
+        return { pq, result: null, error: e instanceof Error ? e.message : 'Error' }
+      }
+    })
+  )
 
   return (
-    <main className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-2xl mx-auto">
-        <nav className="text-sm text-gray-400 mb-6">
-          <a href="/" className="hover:text-gray-600">Dashboard</a>
-          <span className="mx-2">/</span>
-          <span className="text-gray-700">Ask</span>
-        </nav>
-
-        <div className="flex items-baseline justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Ask a question</h1>
-          <a href="/settings" className="text-sm text-gray-400 hover:text-gray-700 transition-colors">Settings →</a>
-        </div>
-
-        <p className="text-sm text-gray-500 mb-6">
-          Ask in plain English — C-thru generates the SQL, shows it to you, then runs it against your data.
-          Only <code className="bg-gray-100 px-1 rounded text-xs">SELECT</code> queries against the curated views are allowed.
+    <AppShell maxWidth="52rem">
+      {/* ── Page header ── */}
+      <div style={{ marginBottom: '2.5rem' }}>
+        <h1
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '2rem',
+            fontWeight: 500,
+            letterSpacing: '-0.02em',
+            color: 'var(--color-ink)',
+            marginBottom: '0.375rem',
+          }}
+        >
+          Ask
+        </h1>
+        <p style={{ fontSize: '0.875rem', color: 'var(--color-ink-3)', lineHeight: 1.5 }}>
+          Ask in plain English — C-thru generates the SQL, shows it to you, then runs it.
+          Only <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', background: 'var(--color-paper-2)', padding: '0.1rem 0.3rem', borderRadius: '4px' }}>SELECT</code> queries are allowed.
         </p>
-
-        <AskForm hasLlmKey={hasLlmKey} />
       </div>
-    </main>
+
+      {/* ── Ask form (client component) ── */}
+      <Card style={{ marginBottom: '2.5rem' }}>
+        <AskForm hasLlmKey={hasLlmKey} />
+      </Card>
+
+      {/* ── Pinned queries ── */}
+      {pinnedWithValues.length > 0 && (
+        <section>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.875rem' }}>
+            <p
+              style={{
+                fontSize: '0.6875rem',
+                fontWeight: 700,
+                letterSpacing: '0.07em',
+                textTransform: 'uppercase',
+                color: 'var(--color-ink-3)',
+              }}
+            >
+              Pinned queries
+            </p>
+            <Link href="/" style={{ fontSize: '0.8125rem', color: 'var(--color-accent)', textDecoration: 'none', fontWeight: 500 }}>
+              View on dashboard →
+            </Link>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem' }}>
+            {pinnedWithValues.map(({ pq, result, error }) => (
+              <Card key={pq.id}>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--color-ink-2)', marginBottom: '0.75rem', lineHeight: 1.45 }}>
+                  {pq.question}
+                </p>
+                {error ? (
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--color-red)' }}>{error}</p>
+                ) : result && result.rows.length === 1 && Object.keys(result.rows[0]!).length === 1 ? (
+                  <p
+                    style={{
+                      fontFamily: 'var(--font-display)',
+                      fontSize: '2.25rem',
+                      fontWeight: 500,
+                      letterSpacing: '-0.02em',
+                      color: 'var(--color-ink)',
+                    }}
+                  >
+                    {String(Object.values(result.rows[0]!)[0])}
+                  </p>
+                ) : result ? (
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--color-ink-3)' }}>
+                    {result.rowCount} row{result.rowCount === 1 ? '' : 's'}
+                  </p>
+                ) : null}
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {pinnedWithValues.length === 0 && (
+        <EmptyState
+          title="No pinned queries yet"
+          description="Ask a question and click 'Pin to dashboard' to save it here."
+        />
+      )}
+    </AppShell>
   )
 }

@@ -1,14 +1,22 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import type { Metadata } from 'next'
 import { getJourney } from '@/lib/journeyEngine'
+import AppShell from '@/components/AppShell'
+import Badge from '@/components/Badge'
 
 export const dynamic = 'force-dynamic'
 
 function formatTime(iso: string) {
-  const d = new Date(iso)
-  return d.toLocaleString(undefined, {
+  return new Date(iso).toLocaleString(undefined, {
     month: 'short', day: 'numeric',
     hour: '2-digit', minute: '2-digit', second: '2-digit',
   })
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ userId: string }> }): Promise<Metadata> {
+  const { userId } = await params
+  return { title: decodeURIComponent(userId) }
 }
 
 export default async function JourneyPage({ params }: { params: Promise<{ userId: string }> }) {
@@ -18,103 +26,232 @@ export default async function JourneyPage({ params }: { params: Promise<{ userId
   if (!journey) notFound()
 
   const { user, events, identificationAt } = journey
+  const preCount = events.filter(e => !e.postIdentification).length
+  const postCount = events.filter(e => e.postIdentification).length
 
   return (
-    <main className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-2xl mx-auto">
-        <nav className="text-sm text-gray-400 mb-6">
-          <a href="/" className="hover:text-gray-600">Dashboard</a>
-          <span className="mx-2">/</span>
-          <a href="/journey" className="hover:text-gray-600">Journey</a>
-          <span className="mx-2">/</span>
-          <span className="text-gray-700 truncate">{user.email ?? decodedId}</span>
-        </nav>
+    <AppShell maxWidth="52rem">
+      {/* ── Breadcrumb ── */}
+      <nav style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '1.75rem', fontSize: '0.8125rem' }}>
+        <Link href="/journey" style={{ color: 'var(--color-ink-3)', textDecoration: 'none' }}>Journey</Link>
+        <span style={{ color: 'var(--color-line)' }}>/</span>
+        <span style={{ color: 'var(--color-ink-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {user.email ?? decodedId}
+        </span>
+      </nav>
 
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">
-            {user.email ?? decodedId}
-          </h1>
-          <p className="text-sm text-gray-400 font-mono mt-0.5">{decodedId}</p>
-          {identificationAt && (
-            <p className="text-xs text-gray-400 mt-1">
-              Identified at {formatTime(identificationAt)}
-            </p>
-          )}
+      {/* ── Header ── */}
+      <div style={{ marginBottom: '2.5rem' }}>
+        <h1
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '1.875rem',
+            fontWeight: 500,
+            letterSpacing: '-0.02em',
+            color: 'var(--color-ink)',
+            marginBottom: '0.25rem',
+          }}
+        >
+          {user.email ?? decodedId}
+        </h1>
+        <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem', color: 'var(--color-ink-3)' }}>{decodedId}</p>
+        {identificationAt && (
+          <p style={{ fontSize: '0.8125rem', color: 'var(--color-ink-3)', marginTop: '0.5rem' }}>
+            Identified {formatTime(identificationAt)}
+          </p>
+        )}
+        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.875rem', flexWrap: 'wrap' }}>
+          <Badge color="neutral">{events.length} events total</Badge>
+          {preCount > 0 && <Badge color="neutral">{preCount} pre-identify</Badge>}
+          {postCount > 0 && <Badge color="accent">{postCount} post-identify</Badge>}
         </div>
+      </div>
 
-        {events.length === 0 ? (
-          <p className="text-sm text-gray-400">No events found for this user.</p>
-        ) : (
-          <div className="relative">
-            {/* Timeline spine */}
-            <div className="absolute left-4 top-0 bottom-0 w-px bg-gray-200" />
+      {events.length === 0 ? (
+        <p style={{ fontSize: '0.9375rem', color: 'var(--color-ink-3)' }}>No events for this user.</p>
+      ) : (
+        <div style={{ position: 'relative' }}>
+          {/* Spine */}
+          <div
+            style={{
+              position: 'absolute',
+              left: '7px',
+              top: '8px',
+              bottom: '8px',
+              width: '1px',
+              background: 'var(--color-line)',
+            }}
+          />
 
-            <ul className="space-y-0">
-              {events.map((evt, i) => {
-                const isIdentificationSeam =
-                  i > 0 &&
-                  !events[i - 1]!.postIdentification &&
-                  evt.postIdentification
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {events.map((evt, i) => {
+              const isSeam =
+                i > 0 &&
+                !events[i - 1]!.postIdentification &&
+                evt.postIdentification
 
-                return (
-                  <li key={evt.id}>
-                    {/* Identification seam marker */}
-                    {isIdentificationSeam && identificationAt && (
-                      <div className="relative flex items-center my-3 ml-8">
-                        <div className="absolute -left-8 w-8 flex items-center justify-center">
-                          <div className="w-3 h-3 rounded-full bg-blue-400 border-2 border-white ring-1 ring-blue-400" />
-                        </div>
-                        <span className="text-xs font-medium text-blue-500 bg-blue-50 border border-blue-100 rounded px-2 py-0.5">
-                          Identified · {formatTime(identificationAt)}
+              return (
+                <li key={evt.id}>
+                  {/* ── Identification seam ── */}
+                  {isSeam && identificationAt && (
+                    <div
+                      style={{
+                        position: 'relative',
+                        display: 'flex',
+                        alignItems: 'center',
+                        margin: '1.25rem 0',
+                        paddingLeft: '2rem',
+                      }}
+                    >
+                      {/* Seam dot */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: 0,
+                          width: '15px',
+                          height: '15px',
+                          borderRadius: '50%',
+                          background: 'var(--color-accent)',
+                          border: '2px solid var(--color-card)',
+                          boxShadow: `0 0 0 2px var(--color-accent)`,
+                          zIndex: 1,
+                        }}
+                      />
+                      {/* Seam line */}
+                      <div
+                        style={{
+                          flex: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.75rem',
+                        }}
+                      >
+                        <div style={{ height: '1px', flex: 1, background: 'var(--color-accent)', opacity: 0.3 }} />
+                        <span
+                          style={{
+                            fontFamily: 'var(--font-sans)',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            color: 'var(--color-accent)',
+                            letterSpacing: '0.04em',
+                            whiteSpace: 'nowrap',
+                            background: 'var(--color-card)',
+                            padding: '0.1875rem 0.625rem',
+                            borderRadius: '20px',
+                            border: '1px solid rgba(184,92,72,0.3)',
+                          }}
+                        >
+                          ── identified as {user.email ?? decodedId} ──
                         </span>
-                      </div>
-                    )}
-
-                    {/* Event row */}
-                    <div className="relative flex items-start gap-4 pl-10 py-2 group">
-                      {/* Dot */}
-                      <div className="absolute left-3 top-3 w-2 h-2 rounded-full border-2 border-white ring-1 bg-gray-400 ring-gray-300" />
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span className={`text-sm font-mono ${evt.postIdentification ? 'text-gray-800' : 'text-gray-500'}`}>
-                            {evt.name}
-                          </span>
-                          <span className="text-xs text-gray-400 shrink-0">
-                            {formatTime(evt.receivedAt)}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-400 mt-0.5 font-mono truncate">
-                          {evt.anonymousId}
-                        </p>
+                        <div style={{ height: '1px', flex: 1, background: 'var(--color-accent)', opacity: 0.3 }} />
                       </div>
                     </div>
-                  </li>
-                )
-              })}
+                  )}
 
-              {/* End of timeline: identification seam at the bottom if no post events */}
-              {identificationAt && events.every(e => !e.postIdentification) && (
-                <li className="relative flex items-center mt-3 ml-8">
-                  <div className="absolute -left-8 w-8 flex items-center justify-center">
-                    <div className="w-3 h-3 rounded-full bg-blue-400 border-2 border-white ring-1 ring-blue-400" />
+                  {/* ── Event row ── */}
+                  <div
+                    style={{
+                      position: 'relative',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '1rem',
+                      paddingLeft: '2rem',
+                      paddingBottom: i < events.length - 1 ? '0.75rem' : 0,
+                    }}
+                  >
+                    {/* Dot */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: '3px',
+                        top: '5px',
+                        width: '9px',
+                        height: '9px',
+                        borderRadius: '50%',
+                        background: evt.postIdentification ? 'var(--color-accent)' : 'var(--color-ink-3)',
+                        border: '2px solid var(--color-card)',
+                        zIndex: 1,
+                      }}
+                    />
+
+                    {/* Timestamp */}
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '0.6875rem',
+                        color: 'var(--color-ink-3)',
+                        whiteSpace: 'nowrap',
+                        paddingTop: '1px',
+                        minWidth: '10rem',
+                      }}
+                    >
+                      {formatTime(evt.receivedAt)}
+                    </span>
+
+                    {/* Event name + anonymous tag */}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <span
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '0.875rem',
+                            fontWeight: evt.postIdentification ? 600 : 400,
+                            color: evt.postIdentification ? 'var(--color-ink)' : 'var(--color-ink-2)',
+                          }}
+                        >
+                          {evt.name}
+                        </span>
+                        {!evt.postIdentification && (
+                          <Badge color="neutral">[anonymous]</Badge>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <span className="text-xs font-medium text-blue-500 bg-blue-50 border border-blue-100 rounded px-2 py-0.5">
-                    Identified · {formatTime(identificationAt)}
-                  </span>
                 </li>
-              )}
-            </ul>
-          </div>
-        )}
+              )
+            })}
 
-        <p className="text-xs text-gray-400 mt-8">
-          {events.length} event{events.length === 1 ? '' : 's'} total
-          {events.filter(e => !e.postIdentification).length > 0 && (
-            <> · {events.filter(e => !e.postIdentification).length} pre-identification</>
-          )}
-        </p>
-      </div>
-    </main>
+            {/* Seam at end if no post-identify events */}
+            {identificationAt && events.every(e => !e.postIdentification) && (
+              <li>
+                <div
+                  style={{
+                    position: 'relative',
+                    display: 'flex',
+                    alignItems: 'center',
+                    marginTop: '1.25rem',
+                    paddingLeft: '2rem',
+                  }}
+                >
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      width: '15px',
+                      height: '15px',
+                      borderRadius: '50%',
+                      background: 'var(--color-accent)',
+                      border: '2px solid var(--color-card)',
+                      boxShadow: `0 0 0 2px var(--color-accent)`,
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-sans)',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      color: 'var(--color-accent)',
+                      letterSpacing: '0.04em',
+                    }}
+                  >
+                    ── identified as {user.email ?? decodedId} · {formatTime(identificationAt)} ──
+                  </span>
+                </div>
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
+    </AppShell>
   )
 }

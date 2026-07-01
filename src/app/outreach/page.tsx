@@ -1,8 +1,16 @@
+import Link from 'next/link'
+import type { Metadata } from 'next'
 import { scoreAllCompanies } from '@/lib/readinessEngine'
 import { evaluateTriggers } from '@/lib/triggerEngine'
 import { listDrafts } from '@/lib/outreachDraft'
 import { dismissDraftAction } from './actions'
+import AppShell from '@/components/AppShell'
+import Card from '@/components/Card'
+import Badge from '@/components/Badge'
+import { ScoreBar } from '@/components/ChartPlaceholder'
+import { EmptyState } from '@/components/States'
 
+export const metadata: Metadata = { title: 'Outreach' }
 export const dynamic = 'force-dynamic'
 
 function displayName(domain: string): string {
@@ -11,23 +19,20 @@ function displayName(domain: string): string {
 }
 
 export default async function OutreachPage() {
-  // evaluateTriggers runs synchronously on page load — no background job (D-27).
   const scores = await scoreAllCompanies()
   await evaluateTriggers(scores)
 
   const scoreMap = new Map(scores.map(s => [s.domain, s]))
-  const [pending, history] = await Promise.all([
+  const [pending, sent, dismissed] = await Promise.all([
     listDrafts('pending'),
-    (async () => {
-      const sent = await listDrafts('sent')
-      const dismissed = await listDrafts('dismissed')
-      return [...sent, ...dismissed].sort(
-        (a, b) => (b.created_at as unknown as number) - (a.created_at as unknown as number)
-      )
-    })(),
+    listDrafts('sent'),
+    listDrafts('dismissed'),
   ])
 
-  // Sort pending by readiness score descending.
+  const history = [...sent, ...dismissed].sort(
+    (a, b) => (b.created_at as unknown as number) - (a.created_at as unknown as number)
+  )
+
   const pendingSorted = [...pending].sort((a, b) => {
     const sa = scoreMap.get(a.domain)
     const sb = scoreMap.get(b.domain)
@@ -37,119 +42,186 @@ export default async function OutreachPage() {
   })
 
   return (
-    <main className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-2xl mx-auto">
-        <nav className="text-sm text-gray-400 mb-6">
-          <a href="/" className="hover:text-gray-600">Dashboard</a>
-          <span className="mx-2">/</span>
-          <span className="text-gray-700">Outreach</span>
-        </nav>
-
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Outreach queue</h1>
-        <p className="text-sm text-gray-400 mb-8">
+    <AppShell maxWidth="52rem">
+      {/* ── Header ── */}
+      <div style={{ marginBottom: '2.25rem' }}>
+        <h1
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '2rem',
+            fontWeight: 500,
+            letterSpacing: '-0.02em',
+            color: 'var(--color-ink)',
+            marginBottom: '0.25rem',
+          }}
+        >
+          Outreach
+        </h1>
+        <p style={{ fontSize: '0.875rem', color: 'var(--color-ink-3)' }}>
           Drafts ready for your review. C-thru never sends automatically.
         </p>
+      </div>
 
-        {/* Pending drafts */}
+      {/* ── Pending queue ── */}
+      <section style={{ marginBottom: '3rem' }}>
+        <p
+          style={{
+            fontSize: '0.6875rem',
+            fontWeight: 700,
+            letterSpacing: '0.07em',
+            textTransform: 'uppercase',
+            color: 'var(--color-ink-3)',
+            marginBottom: '0.875rem',
+          }}
+        >
+          Queue · {pendingSorted.length} pending
+        </p>
+
         {pendingSorted.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-lg p-6 text-center mb-8">
-            <p className="text-sm text-gray-400">No pending drafts.</p>
-            <p className="text-xs text-gray-400 mt-1">
-              Go to an account and click <strong>Draft outreach</strong>, or add trigger rules in{' '}
-              <a href="/settings" className="underline hover:text-gray-600">Settings</a>.
-            </p>
-          </div>
+          <EmptyState
+            title="No pending drafts"
+            description="Go to an account and click 'Draft outreach', or add trigger rules in Settings."
+          />
         ) : (
-          <ul className="space-y-3 mb-10">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {pendingSorted.map(draft => {
               const score = scoreMap.get(draft.domain)
               return (
-                <li key={draft.id} className="bg-white border border-gray-200 rounded-lg px-5 py-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <a
+                <Card key={draft.id}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                        <Link
                           href={`/outreach/${draft.id}`}
-                          className="text-sm font-semibold text-gray-900 hover:underline"
+                          style={{ fontWeight: 700, fontSize: '0.9375rem', color: 'var(--color-ink)', textDecoration: 'none' }}
                         >
                           {displayName(draft.domain)}
-                        </a>
-                        <span className="font-mono text-xs text-gray-400">{draft.domain}</span>
-                        {draft.created_by === 'trigger' && (
-                          <span className="text-xs bg-blue-50 text-blue-600 border border-blue-200 rounded px-1.5 py-0.5">
-                            auto-triggered
-                          </span>
-                        )}
+                        </Link>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--color-ink-3)' }}>
+                          {draft.domain}
+                        </span>
+                        {draft.created_by === 'trigger' && <Badge color="accent">Triggered</Badge>}
                       </div>
-                      {score && (
-                        <p className="text-xs text-gray-500">
-                          Readiness: {score.rulesMet}/{score.rulesTotal} rules met
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 ml-4 shrink-0">
-                      <a
-                        href={`/outreach/${draft.id}`}
-                        className="text-xs bg-gray-900 text-white px-3 py-1.5 rounded hover:bg-gray-700 transition-colors"
+                      {score && <ScoreBar met={score.rulesMet} total={score.rulesTotal} />}
+                      <p
+                        style={{
+                          fontSize: '0.8125rem',
+                          color: 'var(--color-ink-3)',
+                          marginTop: '0.625rem',
+                          overflow: 'hidden',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          lineHeight: 1.5,
+                        }}
                       >
-                        Review & send
-                      </a>
+                        {draft.draft_text.slice(0, 160)}…
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem', flexShrink: 0 }}>
+                      <Link
+                        href={`/outreach/${draft.id}`}
+                        style={{
+                          fontFamily: 'var(--font-sans)',
+                          fontSize: '0.8125rem',
+                          fontWeight: 600,
+                          color: '#fff',
+                          background: 'var(--color-accent)',
+                          padding: '0.4375rem 0.875rem',
+                          borderRadius: '10px',
+                          textDecoration: 'none',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Review →
+                      </Link>
                       <form action={dismissDraftAction}>
                         <input type="hidden" name="draft_id" value={draft.id} />
                         <button
                           type="submit"
-                          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                          style={{
+                            fontSize: '0.75rem',
+                            color: 'var(--color-ink-3)',
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: 0,
+                          }}
                         >
                           Dismiss
                         </button>
                       </form>
                     </div>
                   </div>
-                </li>
+                </Card>
               )
             })}
-          </ul>
+          </div>
         )}
+      </section>
 
-        {/* History */}
-        {history.length > 0 && (
-          <section>
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-              History
-            </h2>
-            <ul className="space-y-2">
-              {history.map(draft => (
-                <li
-                  key={draft.id}
-                  className="flex items-center justify-between bg-white border border-gray-100 rounded-lg px-4 py-3"
-                >
+      {/* ── History ── */}
+      {history.length > 0 && (
+        <section>
+          <p
+            style={{
+              fontSize: '0.6875rem',
+              fontWeight: 700,
+              letterSpacing: '0.07em',
+              textTransform: 'uppercase',
+              color: 'var(--color-ink-3)',
+              marginBottom: '0.875rem',
+            }}
+          >
+            History
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {history.map(draft => (
+              <div
+                key={draft.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  background: 'var(--color-card)',
+                  border: '1px solid var(--color-line)',
+                  borderRadius: '10px',
+                  padding: '0.75rem 1.125rem',
+                  gap: '1rem',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  {draft.status === 'sent' ? (
+                    <span style={{ fontSize: '0.875rem' }}>↗</span>
+                  ) : (
+                    <span style={{ fontSize: '0.875rem', color: 'var(--color-ink-3)' }}>✕</span>
+                  )}
                   <div>
-                    <span className="text-sm text-gray-700 font-medium">
+                    <span style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--color-ink)' }}>
                       {displayName(draft.domain)}
                     </span>
-                    <span className="ml-2 text-xs text-gray-400 font-mono">{draft.domain}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`text-xs font-medium ${
-                        draft.status === 'sent' ? 'text-green-600' : 'text-gray-400'
-                      }`}
-                    >
-                      {draft.status === 'sent' ? 'Sent / copied' : 'Dismissed'}
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--color-ink-3)', marginLeft: '0.5rem' }}>
+                      {draft.domain}
                     </span>
-                    <a
-                      href={`/outreach/${draft.id}`}
-                      className="text-xs text-gray-400 hover:text-gray-600 underline"
-                    >
-                      View
-                    </a>
                   </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-      </div>
-    </main>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+                  <Badge color={draft.status === 'sent' ? 'green' : 'neutral'}>
+                    {draft.status === 'sent' ? 'Sent / copied' : 'Dismissed'}
+                  </Badge>
+                  <Link
+                    href={`/outreach/${draft.id}`}
+                    style={{ fontSize: '0.8125rem', color: 'var(--color-accent)', textDecoration: 'none', fontWeight: 500 }}
+                  >
+                    View →
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </AppShell>
   )
 }
