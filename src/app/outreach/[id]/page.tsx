@@ -1,13 +1,24 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import type { Metadata } from 'next'
 import { getDraft, getOutreachSettings, getTopUsers, scanUngroundedClaims } from '@/lib/outreachDraft'
 import { scoreCompany } from '@/lib/readinessEngine'
 import { DraftActions } from './DraftActions'
+import AppShell from '@/components/AppShell'
+import Card from '@/components/Card'
+import Badge from '@/components/Badge'
 
 export const dynamic = 'force-dynamic'
 
 function displayName(domain: string): string {
   const stripped = domain.replace(/\.(com|io|co|net|org|ai|app|dev|so|xyz)$/, '')
   return stripped.charAt(0).toUpperCase() + stripped.slice(1)
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params
+  const draft = await getDraft(Number(id))
+  return { title: draft ? `Outreach — ${displayName(draft.domain)}` : 'Outreach' }
 }
 
 export default async function DraftReviewPage({
@@ -37,87 +48,148 @@ export default async function DraftReviewPage({
   const isDone = draft.status !== 'pending'
 
   return (
-    <main className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-2xl mx-auto">
-        <nav className="text-sm text-gray-400 mb-6">
-          <a href="/" className="hover:text-gray-600">Dashboard</a>
-          <span className="mx-2">/</span>
-          <a href="/outreach" className="hover:text-gray-600">Outreach</a>
-          <span className="mx-2">/</span>
-          <span className="text-gray-700">{displayName(draft.domain)}</span>
-        </nav>
+    <AppShell maxWidth="52rem">
+      {/* ── Breadcrumb ── */}
+      <nav style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '1.75rem', fontSize: '0.8125rem' }}>
+        <Link href="/outreach" style={{ color: 'var(--color-ink-3)', textDecoration: 'none' }}>Outreach</Link>
+        <span style={{ color: 'var(--color-line)' }}>/</span>
+        <span style={{ color: 'var(--color-ink-2)' }}>{displayName(draft.domain)}</span>
+      </nav>
 
-        {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-2xl font-bold text-gray-900">{displayName(draft.domain)}</h1>
-            {draft.created_by === 'trigger' && (
-              <span className="text-xs bg-blue-50 text-blue-600 border border-blue-200 rounded px-2 py-0.5">
-                auto-triggered
-              </span>
-            )}
-            {isDone && (
-              <span className="text-xs bg-gray-100 text-gray-500 border border-gray-200 rounded px-2 py-0.5">
-                {draft.status}
-              </span>
-            )}
+      {/* ── Header ── */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.875rem', marginBottom: '2rem' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
+            <h1
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: '1.875rem',
+                fontWeight: 500,
+                letterSpacing: '-0.02em',
+                color: 'var(--color-ink)',
+              }}
+            >
+              {displayName(draft.domain)}
+            </h1>
+            {draft.created_by === 'trigger' && <Badge color="accent">Triggered</Badge>}
+            {isDone && <Badge color={draft.status === 'sent' ? 'green' : 'neutral'}>{draft.status}</Badge>}
           </div>
-          <p className="text-sm text-gray-400 font-mono">{draft.domain}</p>
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem', color: 'var(--color-ink-3)' }}>{draft.domain}</p>
         </div>
+      </div>
 
-        {/* Cooldown warning passed via redirect */}
-        {warning && (
-          <div className="mb-4 bg-amber-50 border border-amber-200 rounded px-4 py-3">
-            <p className="text-sm text-amber-700">⚠ {decodeURIComponent(warning)}</p>
-          </div>
-        )}
+      {/* ── Cooldown warning ── */}
+      {warning && (
+        <Card
+          style={{
+            background: 'rgba(180,121,31,0.06)',
+            border: '1px solid rgba(180,121,31,0.25)',
+            marginBottom: '1.25rem',
+          }}
+        >
+          <p style={{ fontSize: '0.875rem', color: 'var(--color-amber)' }}>⚠ {decodeURIComponent(warning)}</p>
+        </Card>
+      )}
 
-        {/* Readiness summary */}
-        {score && (
-          <div className="bg-white border border-gray-200 rounded-lg p-4 mb-4">
-            <p className="text-xs text-gray-500 mb-2 uppercase tracking-wide font-semibold">Readiness</p>
-            <p className="text-sm text-gray-800 font-medium mb-2">
-              {score.rulesMet}/{score.rulesTotal} rules met
-            </p>
-            <ul className="space-y-1">
-              {score.breakdown.map(r => (
-                <li key={r.ruleId} className="flex items-center gap-2 text-xs text-gray-600">
-                  <span className={r.passed ? 'text-green-500' : 'text-red-400'}>{r.passed ? '✓' : '✗'}</span>
-                  <span>{r.label}</span>
-                  <span className="text-gray-400">— {r.value}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Ungrounded claims warnings (D-25) */}
-        {warnings.length > 0 && (
-          <div className="mb-4 bg-red-50 border border-red-200 rounded px-4 py-3 space-y-1">
-            {warnings.map((w, i) => (
-              <p key={i} className="text-xs text-red-700">{w}</p>
+      {/* ── Readiness context ── */}
+      {score && (
+        <Card style={{ marginBottom: '1.25rem' }}>
+          <p
+            style={{
+              fontSize: '0.6875rem',
+              fontWeight: 700,
+              letterSpacing: '0.07em',
+              textTransform: 'uppercase',
+              color: 'var(--color-ink-3)',
+              marginBottom: '0.75rem',
+            }}
+          >
+            Readiness context
+          </p>
+          <p style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--color-ink)', marginBottom: '0.875rem' }}>
+            {score.rulesMet}/{score.rulesTotal} rules met
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {score.breakdown.map(r => (
+              <div key={r.ruleId} style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', fontSize: '0.8125rem' }}>
+                <span style={{ color: r.passed ? 'var(--color-green)' : 'var(--color-ink-3)', flexShrink: 0 }}>
+                  {r.passed ? '✓' : '✗'}
+                </span>
+                <span style={{ color: 'var(--color-ink-2)' }}>{r.label}</span>
+                <span style={{ color: 'var(--color-ink-3)' }}>— {r.value}</span>
+              </div>
             ))}
           </div>
-        )}
+        </Card>
+      )}
 
-        {/* Voice mode indicator (D-30) */}
-        <p className="text-xs text-gray-400 mb-4 italic">{voiceMode}</p>
-
-        {isDone ? (
-          // Read-only view for sent/dismissed drafts.
-          <div className="bg-white border border-gray-200 rounded-lg p-5">
-            <p className="text-xs text-gray-500 mb-2 uppercase tracking-wide font-semibold">Draft</p>
-            <pre className="whitespace-pre-wrap text-sm text-gray-800 font-sans">{draft.draft_text}</pre>
+      {/* ── Ungrounded claim warnings ── */}
+      {warnings.length > 0 && (
+        <Card
+          style={{
+            background: 'rgba(163,70,47,0.05)',
+            border: '1px solid rgba(163,70,47,0.2)',
+            marginBottom: '1.25rem',
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+            {warnings.map((w, i) => (
+              <p key={i} style={{ fontSize: '0.8125rem', color: 'var(--color-red)' }}>
+                ⚠ {w}
+              </p>
+            ))}
           </div>
-        ) : (
-          <DraftActions
-            draftId={draft.id}
-            initialText={draft.draft_text}
-            defaultRecipient={defaultRecipient}
-            hasSlack={!!settings.slack_webhook_url}
-          />
-        )}
-      </div>
-    </main>
+        </Card>
+      )}
+
+      {/* ── Voice mode badge ── */}
+      <p
+        style={{
+          fontSize: '0.8125rem',
+          fontStyle: 'italic',
+          color: 'var(--color-ink-3)',
+          marginBottom: '1.25rem',
+        }}
+      >
+        {voiceMode}
+      </p>
+
+      {/* ── Draft area ── */}
+      {isDone ? (
+        <Card>
+          <p
+            style={{
+              fontSize: '0.6875rem',
+              fontWeight: 700,
+              letterSpacing: '0.07em',
+              textTransform: 'uppercase',
+              color: 'var(--color-ink-3)',
+              marginBottom: '0.75rem',
+            }}
+          >
+            Draft
+          </p>
+          <pre
+            style={{
+              whiteSpace: 'pre-wrap',
+              fontFamily: 'var(--font-sans)',
+              fontSize: '0.9375rem',
+              color: 'var(--color-ink-2)',
+              lineHeight: 1.65,
+              margin: 0,
+            }}
+          >
+            {draft.draft_text}
+          </pre>
+        </Card>
+      ) : (
+        <DraftActions
+          draftId={draft.id}
+          initialText={draft.draft_text}
+          defaultRecipient={defaultRecipient}
+          hasSlack={!!settings.slack_webhook_url}
+        />
+      )}
+    </AppShell>
   )
 }

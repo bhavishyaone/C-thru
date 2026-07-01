@@ -1,98 +1,216 @@
+import Link from 'next/link'
+import type { Metadata } from 'next'
 import { collectBriefFacts, generateBriefSentence } from '@/lib/briefGenerator'
+import AppShell from '@/components/AppShell'
+import Card from '@/components/Card'
+import { EmptyState } from '@/components/States'
 
+export const metadata: Metadata = { title: 'Morning brief' }
 export const dynamic = 'force-dynamic'
 
 export default async function BriefPage() {
   const facts = await collectBriefFacts()
   const brief = generateBriefSentence(facts)
 
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+
   return (
-    <main className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-2xl mx-auto">
-        <nav className="text-sm text-gray-400 mb-6">
-          <a href="/" className="hover:text-gray-600">Dashboard</a>
-          <span className="mx-2">/</span>
-          <span className="text-gray-700">Morning Brief</span>
-        </nav>
+    <AppShell maxWidth="52rem">
+      {/* ── Header ── */}
+      <div style={{ marginBottom: '2.5rem' }}>
+        <p
+          style={{
+            fontSize: '0.6875rem',
+            fontWeight: 700,
+            letterSpacing: '0.09em',
+            textTransform: 'uppercase',
+            color: 'var(--color-accent)',
+            marginBottom: '0.5rem',
+          }}
+        >
+          Morning brief
+        </p>
+        <h1
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '2rem',
+            fontWeight: 500,
+            letterSpacing: '-0.02em',
+            color: 'var(--color-ink)',
+          }}
+        >
+          {today}
+        </h1>
+      </div>
 
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Morning Brief</h1>
+      {/* ── Summary sentence ── */}
+      <Card style={{ marginBottom: '2rem', background: 'var(--color-paper-2)', boxShadow: 'none' }}>
+        <p
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '1.1875rem',
+            fontWeight: 400,
+            fontStyle: 'italic',
+            color: 'var(--color-ink)',
+            lineHeight: 1.55,
+            marginBottom: '0.75rem',
+          }}
+        >
+          {brief}
+        </p>
+        <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', fontFamily: 'var(--font-mono)' }}>
+          Generated {new Date(facts.generatedAt).toLocaleString()} · deterministic, no AI
+        </p>
+      </Card>
 
-        {/* Brief sentence */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-          <p className="text-base text-gray-800 leading-relaxed">{brief}</p>
-          <p className="text-xs text-gray-400 mt-3">
-            Generated {new Date(facts.generatedAt).toLocaleString()} · No AI involved — deterministic template.
+      {/* ── Metric strip ── */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '1rem',
+          marginBottom: '2.5rem',
+        }}
+      >
+        {[
+          { label: 'Active users · 7d', value: facts.activeUsers7d },
+          { label: 'Active users · 30d', value: facts.activeUsers30d },
+          { label: 'New signups · 7d', value: facts.newSignups7d },
+        ].map(({ label, value }) => (
+          <Card key={label} style={{ textAlign: 'center' }}>
+            <p
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: '2.5rem',
+                fontWeight: 500,
+                letterSpacing: '-0.03em',
+                color: 'var(--color-ink)',
+                lineHeight: 1,
+                marginBottom: '0.375rem',
+              }}
+            >
+              {value}
+            </p>
+            <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)' }}>{label}</p>
+          </Card>
+        ))}
+      </div>
+
+      {/* ── Top account ── */}
+      {facts.topCompany && facts.topCompanyScore && (
+        <section style={{ marginBottom: '2rem' }}>
+          <p
+            style={{
+              fontSize: '0.6875rem',
+              fontWeight: 700,
+              letterSpacing: '0.07em',
+              textTransform: 'uppercase',
+              color: 'var(--color-ink-3)',
+              marginBottom: '0.875rem',
+            }}
+          >
+            Top account
           </p>
-        </div>
-
-        {/* Stats grid */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-            <p className="text-3xl font-bold text-gray-900">{facts.activeUsers7d}</p>
-            <p className="text-xs text-gray-400 mt-1">Active users (7d)</p>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-            <p className="text-3xl font-bold text-gray-900">{facts.activeUsers30d}</p>
-            <p className="text-xs text-gray-400 mt-1">Active users (30d)</p>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-            <p className="text-3xl font-bold text-gray-900">{facts.newSignups7d}</p>
-            <p className="text-xs text-gray-400 mt-1">New signups (7d)</p>
-          </div>
-        </div>
-
-        {/* Top users */}
-        {facts.topUsers.length > 0 && (
-          <section className="mb-6">
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-              Most active this week
-            </h2>
-            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wide">
-                    <th className="text-left px-4 py-2">User</th>
-                    <th className="text-right px-4 py-2">Events</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {facts.topUsers.map((u, i) => (
-                    <tr key={u.userId} className={i % 2 === 0 ? '' : 'bg-gray-50'}>
-                      <td className="px-4 py-2 text-gray-800">
-                        {u.email ?? <span className="font-mono text-gray-400">{u.userId}</span>}
-                      </td>
-                      <td className="px-4 py-2 text-right text-gray-600">{u.eventCount.toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        )}
-
-        {/* Top account */}
-        {facts.topCompany && facts.topCompanyScore && (
-          <section>
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-              Top account
-            </h2>
-            <div className="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between">
+          <Card>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <p className="font-medium text-gray-900">{facts.topCompany}</p>
-                <p className="text-xs text-gray-400 mt-0.5">
+                <p style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--color-ink)', marginBottom: '0.25rem' }}>
+                  {facts.topCompany}
+                </p>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--color-ink-3)' }}>
                   {facts.topCompanyScore.rulesMet}/{facts.topCompanyScore.rulesTotal} readiness rules met
                 </p>
               </div>
-              <a
+              <Link
                 href={`/accounts/${facts.topCompany}`}
-                className="text-xs text-gray-400 hover:text-gray-700 underline"
+                style={{
+                  fontSize: '0.8125rem',
+                  fontWeight: 500,
+                  color: 'var(--color-accent)',
+                  textDecoration: 'none',
+                }}
               >
-                Details →
-              </a>
+                View account →
+              </Link>
             </div>
-          </section>
-        )}
-      </div>
-    </main>
+          </Card>
+        </section>
+      )}
+
+      {/* ── Most active users ── */}
+      {facts.topUsers.length > 0 ? (
+        <section>
+          <p
+            style={{
+              fontSize: '0.6875rem',
+              fontWeight: 700,
+              letterSpacing: '0.07em',
+              textTransform: 'uppercase',
+              color: 'var(--color-ink-3)',
+              marginBottom: '0.875rem',
+            }}
+          >
+            Most active this week
+          </p>
+          <Card padding="0">
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--color-line)' }}>
+                  {['User', 'Events this week'].map((h, i) => (
+                    <th
+                      key={h}
+                      style={{
+                        textAlign: i === 0 ? 'left' : 'right',
+                        padding: '0.75rem 1.25rem',
+                        fontSize: '0.6875rem',
+                        fontWeight: 700,
+                        letterSpacing: '0.05em',
+                        textTransform: 'uppercase',
+                        color: 'var(--color-ink-3)',
+                        background: 'var(--color-paper-2)',
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {facts.topUsers.map((u, i) => (
+                  <tr
+                    key={u.userId}
+                    style={{ borderBottom: i < facts.topUsers.length - 1 ? '1px solid var(--color-line)' : 'none' }}
+                  >
+                    <td style={{ padding: '0.875rem 1.25rem', color: 'var(--color-ink)' }}>
+                      {u.email ?? (
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--color-ink-3)' }}>
+                          {u.userId}
+                        </span>
+                      )}
+                    </td>
+                    <td
+                      style={{
+                        padding: '0.875rem 1.25rem',
+                        textAlign: 'right',
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '0.8125rem',
+                        color: 'var(--color-ink-2)',
+                      }}
+                    >
+                      {u.eventCount.toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+        </section>
+      ) : (
+        <EmptyState
+          title="No active users this week"
+          description="Data will appear here once events start flowing in."
+        />
+      )}
+    </AppShell>
   )
 }

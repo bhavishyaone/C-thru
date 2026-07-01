@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import type { AskResult } from '@/lib/ask'
 import type { Trend } from '@/lib/trendComputer'
 import { pinQueryAction } from './actions'
+import { TrendChip } from '@/components/MetricCard'
 
 type State =
   | { status: 'idle' }
@@ -15,38 +16,54 @@ function isSingleAggregate(rows: Record<string, unknown>[]): boolean {
   return rows.length === 1 && Object.keys(rows[0]!).length === 1
 }
 
-function TrendBadge({ trend }: { trend: Trend }) {
-  const colors: Record<string, string> = {
-    up:   'bg-green-50 text-green-700 border-green-200',
-    down: 'bg-red-50 text-red-700 border-red-200',
-    flat: 'bg-gray-50 text-gray-600 border-gray-200',
-    new:  'bg-blue-50 text-blue-700 border-blue-200',
-  }
-  return (
-    <span className={`inline-block text-xs px-2 py-1 rounded border ${colors[trend.direction] ?? colors.flat}`}>
-      {trend.label}
-    </span>
-  )
+function toTrendChipDir(direction: Trend['direction']): 'up' | 'down' | 'flat' {
+  if (direction === 'up') return 'up'
+  if (direction === 'down') return 'down'
+  return 'flat'
 }
 
 function ResultTable({ rows }: { rows: Record<string, unknown>[] }) {
   const cols = Object.keys(rows[0]!)
   return (
-    <div className="overflow-x-auto rounded border border-gray-200">
-      <table className="w-full text-sm">
+    <div style={{ overflowX: 'auto', borderRadius: '10px', border: '1px solid var(--color-line)' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
         <thead>
-          <tr className="bg-gray-50 border-b border-gray-100">
+          <tr style={{ borderBottom: '1px solid var(--color-line)', background: 'var(--color-paper-2)' }}>
             {cols.map(c => (
-              <th key={c} className="text-left px-4 py-2 font-medium text-gray-500">{c}</th>
+              <th
+                key={c}
+                style={{
+                  textAlign: 'left',
+                  padding: '0.625rem 1rem',
+                  fontSize: '0.6875rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.05em',
+                  textTransform: 'uppercase',
+                  color: 'var(--color-ink-3)',
+                }}
+              >
+                {c}
+              </th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i} className={i % 2 === 0 ? '' : 'bg-gray-50'}>
+            <tr
+              key={i}
+              style={{ borderBottom: i < rows.length - 1 ? '1px solid var(--color-line)' : 'none' }}
+            >
               {cols.map(c => (
-                <td key={c} className="px-4 py-2 text-gray-800 font-mono text-xs">
-                  {row[c] == null ? <span className="text-gray-400">null</span> : String(row[c])}
+                <td
+                  key={c}
+                  style={{
+                    padding: '0.625rem 1rem',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '0.75rem',
+                    color: row[c] == null ? 'var(--color-ink-3)' : 'var(--color-ink-2)',
+                  }}
+                >
+                  {row[c] == null ? 'null' : String(row[c])}
                 </td>
               ))}
             </tr>
@@ -57,18 +74,33 @@ function ResultTable({ rows }: { rows: Record<string, unknown>[] }) {
   )
 }
 
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  border: '1px solid var(--color-line)',
+  borderRadius: '10px',
+  padding: '0.875rem 1rem',
+  fontFamily: 'var(--font-sans)',
+  fontSize: '0.9375rem',
+  color: 'var(--color-ink)',
+  background: 'var(--color-paper)',
+  resize: 'none',
+  outline: 'none',
+  lineHeight: 1.55,
+}
+
 export function AskForm({ hasLlmKey }: { hasLlmKey: boolean }) {
   const [question, setQuestion] = useState('')
   const [state, setState] = useState<State>({ status: 'idle' })
   const [isPending, startTransition] = useTransition()
   const [pinned, setPinned] = useState(false)
+  const [sqlOpen, setSqlOpen] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const q = question.trim()
     if (!q) return
-
     setState({ status: 'loading' })
+    setSqlOpen(false)
     startTransition(async () => {
       try {
         setPinned(false)
@@ -93,92 +125,182 @@ export function AskForm({ hasLlmKey }: { hasLlmKey: boolean }) {
 
   return (
     <div>
-      <form onSubmit={handleSubmit} className="mb-8">
+      {/* ── Search input ── */}
+      {!hasLlmKey && (
+        <div
+          style={{
+            background: 'rgba(180,121,31,0.08)',
+            border: '1px solid rgba(180,121,31,0.25)',
+            borderRadius: '10px',
+            padding: '0.75rem 1rem',
+            fontSize: '0.8125rem',
+            color: 'var(--color-amber)',
+            marginBottom: '1rem',
+          }}
+        >
+          No LLM key configured.{' '}
+          <a href="/settings" style={{ color: 'var(--color-amber)', fontWeight: 600 }}>Add one in Settings →</a>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} style={{ marginBottom: '2rem' }}>
         <textarea
           value={question}
           onChange={e => setQuestion(e.target.value)}
-          placeholder="How many signups last 7 days? Which companies are most active?"
+          placeholder="Ask anything — e.g. 'how many signups last week?'"
           rows={3}
           disabled={loading || !hasLlmKey}
-          className="w-full border border-gray-300 rounded px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-400 mb-3"
+          style={{
+            ...inputStyle,
+            marginBottom: '0.875rem',
+            opacity: (!hasLlmKey || loading) ? 0.5 : 1,
+          }}
         />
-        <div className="flex items-center gap-3">
-          <button
-            type="submit"
-            disabled={loading || !question.trim() || !hasLlmKey}
-            className="bg-gray-900 text-white text-sm px-5 py-2 rounded hover:bg-gray-700 transition-colors disabled:opacity-40"
-          >
-            {loading ? 'Asking…' : 'Ask'}
-          </button>
-          {!hasLlmKey && (
-            <p className="text-sm text-amber-700">
-              No LLM key configured.{' '}
-              <a href="/settings" className="underline hover:text-amber-900">Add one in Settings →</a>
-            </p>
-          )}
-        </div>
+        <button
+          type="submit"
+          disabled={loading || !question.trim() || !hasLlmKey}
+          style={{
+            fontFamily: 'var(--font-sans)',
+            fontSize: '0.875rem',
+            fontWeight: 600,
+            color: '#fff',
+            background: 'var(--color-accent)',
+            border: 'none',
+            padding: '0.5625rem 1.25rem',
+            borderRadius: '10px',
+            cursor: loading || !question.trim() || !hasLlmKey ? 'not-allowed' : 'pointer',
+            opacity: loading || !question.trim() || !hasLlmKey ? 0.45 : 1,
+            letterSpacing: '-0.01em',
+          }}
+        >
+          {loading ? 'Asking…' : 'Ask'}
+        </button>
       </form>
 
+      {/* ── Error ── */}
       {state.status === 'error' && (
-        <div className="bg-red-50 border border-red-200 rounded px-4 py-3 text-sm text-red-700 mb-6">
+        <div
+          style={{
+            background: 'rgba(163,70,47,0.06)',
+            border: '1px solid rgba(163,70,47,0.2)',
+            borderRadius: '10px',
+            padding: '0.875rem 1rem',
+            fontSize: '0.8125rem',
+            color: 'var(--color-red)',
+            marginBottom: '1.5rem',
+          }}
+        >
           {state.message}
         </div>
       )}
 
+      {/* ── Result ── */}
       {state.status === 'success' && (() => {
         const { result } = state
         const single = isSingleAggregate(result.rows)
         const singleValue = single ? String(Object.values(result.rows[0]!)[0]) : null
 
         return (
-          <div className="space-y-6">
-            {/* Answer */}
-            <section>
-              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Answer</h2>
-              <p className="text-sm text-gray-500 mb-3">{result.label}</p>
-              {result.rows.length === 0 ? (
-                <p className="text-sm text-gray-500">No results.</p>
-              ) : single ? (
-                <div>
-                  <p className="text-4xl font-bold text-gray-900 tabular-nums">{singleValue}</p>
-                  {result.trend && (
-                    <div className="mt-2">
-                      <TrendBadge trend={result.trend} />
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div>
-                  <ResultTable rows={result.rows} />
-                  {result.trend && (
-                    <div className="mt-2">
-                      <TrendBadge trend={result.trend} />
-                    </div>
-                  )}
-                </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+            {/* Question echo */}
+            <div>
+              <p style={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-ink-3)', marginBottom: '0.375rem' }}>
+                Question
+              </p>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: 500, color: 'var(--color-ink)', letterSpacing: '-0.01em' }}>
+                {result.question}
+              </p>
+              {result.label && (
+                <p style={{ fontSize: '0.8125rem', color: 'var(--color-ink-3)', marginTop: '0.25rem' }}>
+                  {result.label}
+                </p>
               )}
-            </section>
+            </div>
 
-            {/* SQL */}
-            <section>
-              <details className="group">
-                <summary className="text-xs font-semibold text-gray-400 uppercase tracking-wide cursor-pointer select-none hover:text-gray-600 transition-colors">
-                  SQL <span className="text-gray-300 group-open:hidden">▸</span>
-                  <span className="text-gray-300 hidden group-open:inline">▾</span>
-                </summary>
-                <pre className="mt-2 bg-gray-900 text-gray-100 text-xs rounded p-4 overflow-x-auto whitespace-pre-wrap font-mono leading-relaxed">
+            {/* Answer number */}
+            {result.rows.length === 0 ? (
+              <p style={{ fontSize: '0.9375rem', color: 'var(--color-ink-3)' }}>No results found.</p>
+            ) : single ? (
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem' }}>
+                <p
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: '3.25rem',
+                    fontWeight: 500,
+                    letterSpacing: '-0.03em',
+                    color: 'var(--color-ink)',
+                    lineHeight: 1,
+                  }}
+                >
+                  {singleValue}
+                </p>
+                {result.trend && (
+                  <TrendChip direction={toTrendChipDir(result.trend.direction)} label={result.trend.label} />
+                )}
+              </div>
+            ) : (
+              <div>
+                <ResultTable rows={result.rows} />
+                {result.trend && (
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <TrendChip direction={toTrendChipDir(result.trend.direction)} label={result.trend.label} />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SQL collapsible */}
+            <div>
+              <button
+                onClick={() => setSqlOpen(v => !v)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.375rem',
+                  fontSize: '0.8125rem',
+                  fontWeight: 600,
+                  color: 'var(--color-ink-2)',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                  marginBottom: sqlOpen ? '0.75rem' : 0,
+                }}
+              >
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>
+                  {sqlOpen ? '▾' : '▸'}
+                </span>
+                Show SQL
+              </button>
+              {sqlOpen && (
+                <pre
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '0.8125rem',
+                    background: 'var(--color-ink)',
+                    color: '#F7F4EE',
+                    borderRadius: '10px',
+                    padding: '1.25rem',
+                    overflowX: 'auto',
+                    whiteSpace: 'pre-wrap',
+                    lineHeight: 1.65,
+                    margin: 0,
+                  }}
+                >
                   {result.sql}
                 </pre>
-              </details>
-              <p className="text-xs text-gray-400 mt-1">
-                {result.rowCount.toLocaleString()} row{result.rowCount === 1 ? '' : 's'} returned
+              )}
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginTop: '0.5rem', fontFamily: 'var(--font-mono)' }}>
+                Scanned {result.rowCount.toLocaleString()} row{result.rowCount === 1 ? '' : 's'}
               </p>
-            </section>
+            </div>
 
-            {/* Pin */}
-            <section>
+            {/* Pin button */}
+            <div>
               {pinned ? (
-                <p className="text-sm text-green-700">Pinned to dashboard.</p>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--color-green)', fontWeight: 500 }}>
+                  ✓ Pinned to dashboard
+                </p>
               ) : (
                 <button
                   type="button"
@@ -186,12 +308,23 @@ export function AskForm({ hasLlmKey }: { hasLlmKey: boolean }) {
                     await pinQueryAction(result.question, result.sql)
                     setPinned(true)
                   }}
-                  className="text-sm border border-gray-300 rounded px-4 py-2 hover:bg-gray-50 transition-colors text-gray-700"
+                  style={{
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: '0.8125rem',
+                    fontWeight: 600,
+                    color: 'var(--color-ink)',
+                    background: 'var(--color-card)',
+                    border: '1px solid var(--color-line)',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '10px',
+                    cursor: 'pointer',
+                    letterSpacing: '-0.01em',
+                  }}
                 >
-                  Pin to Dashboard
+                  Pin to dashboard
                 </button>
               )}
-            </section>
+            </div>
           </div>
         )
       })()}
